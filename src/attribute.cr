@@ -16,10 +16,6 @@ module Crumble::ORM
       attrs[html_attr_name] = value.to_s
     end
 
-    def selector
-      CSS::AttrSelector.new(html_attr_name, value.to_s)
-    end
-
     private def html_attr_name
       "data-crumble-#{model.name.dasherize}-#{name}"
     end
