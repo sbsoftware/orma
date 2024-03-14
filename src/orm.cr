@@ -1,6 +1,6 @@
 require "db"
-require "pg"
-require "./*"
+require "./attribute"
+require "./to_sql_val"
 
 module Crumble::ORM
   abstract class Base

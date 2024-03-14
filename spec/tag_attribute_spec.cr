@@ -1,4 +1,4 @@
-require "../spec_helper"
+require "./spec_helper"
 
 class TagAttributeModel < Crumble::ORM::Base
   id_column id : Int64?

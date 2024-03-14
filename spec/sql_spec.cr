@@ -1,4 +1,4 @@
-require "../spec_helper"
+require "./spec_helper"
 require "./fake_db"
 
 class MyModel < Crumble::ORM::Base
