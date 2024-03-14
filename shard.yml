@@ -1,0 +1,9 @@
+name: crumble-orm
+version: 0.1.0
+
+authors:
+  - Stefan Bilharz <stefan@sbsoftware.de>
+
+crystal: '>= 1.11.2'
+
+license: MIT
