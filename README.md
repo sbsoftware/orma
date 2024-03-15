@@ -1,6 +1,6 @@
-# crumble-orm
+# Orma
 
-TODO: Write a description here
+Orma is your friendly database secretary. Whatever you need to query, she will get it for you.
 
 ## Installation
 
@@ -8,8 +8,8 @@ TODO: Write a description here
 
    ```yaml
    dependencies:
-     crumble-orm:
-       github: sbsoftware/crumble-orm
+     orma:
+       github: sbsoftware/orma
    ```
 
 2. Run `shards install`
@@ -17,7 +17,7 @@ TODO: Write a description here
 ## Usage
 
 ```crystal
-require "crumble-orm"
+require "orma"
 ```
 
 TODO: Write usage instructions here
@@ -28,7 +28,7 @@ TODO: Write development instructions here
 
 ## Contributing
 
-1. Fork it (<https://github.com/sbsoftware/crumble-orm/fork>)
+1. Fork it (<https://github.com/sbsoftware/orma/fork>)
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)

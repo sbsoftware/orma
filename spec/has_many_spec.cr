@@ -1,7 +1,7 @@
 require "./spec_helper"
 
 module HasManySpec
-  class Item < Crumble::ORM::Base
+  class Item < Orma::Record
     id_column id : Int64?
 
     def self.db
@@ -9,7 +9,7 @@ module HasManySpec
     end
   end
 
-  class List < Crumble::ORM::Base
+  class List < Orma::Record
     id_column id : Int64?
 
     has_many_of HasManySpec::Item

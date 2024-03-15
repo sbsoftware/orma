@@ -1,6 +1,6 @@
 require "./spec_helper"
 
-class DefaultValueModel < Crumble::ORM::Base
+class DefaultValueModel < Orma::Record
   id_column id : Int64?
   column active : Bool = true
 end

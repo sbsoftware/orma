@@ -1,6 +1,6 @@
-module Crumble::ORM
+module Orma
   class Attribute(T)
-    getter model : Crumble::ORM::Base.class
+    getter model : Orma::Record.class
     getter name : Symbol
     property value : T
 

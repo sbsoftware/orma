@@ -2,33 +2,33 @@ require "db"
 require "./attribute"
 require "./to_sql_val"
 
-module Crumble::ORM
-  abstract class Base
+module Orma
+  abstract class Record
     @@db : DB::Database?
     @@observers = [] of Proc(self, Nil)
 
-    annotation Crumble::ORM::IdColumn; end
-    annotation Crumble::ORM::Column; end
+    annotation Orma::IdColumn; end
+    annotation Orma::Column; end
 
     macro id_column(type_decl)
-      @[Crumble::ORM::IdColumn]
+      @[Orma::IdColumn]
       _column({{type_decl}})
     end
 
     macro column(type_decl)
-      @[Crumble::ORM::Column]
+      @[Orma::Column]
       _column({{type_decl}})
     end
 
     macro _column(type_decl)
-      getter {{type_decl.var}} : Crumble::ORM::Attribute({{type_decl.type}}) = Crumble::ORM::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{[type_decl.var.symbolize, type_decl.value].splat}})
+      getter {{type_decl.var}} : Orma::Attribute({{type_decl.type}}) = Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{[type_decl.var.symbolize, type_decl.value].splat}})
 
       def {{type_decl.var}}=(new_val)
         {{type_decl.var}}.value = new_val
       end
 
       def self.{{type_decl.var}}(value)
-        Crumble::ORM::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+        Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
       end
     end
 
@@ -44,7 +44,7 @@ module Crumble::ORM
       @@db = DB.open(ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres"))
     end
 
-    def self.add_observer(&block : Crumble::ORM::Base -> Nil)
+    def self.add_observer(&block : Orma::Record -> Nil)
       @@observers << block
     end
 
@@ -116,7 +116,7 @@ module Crumble::ORM
       res.each_column do |column|
         {% begin %}
           case column
-            {% for model_col in @type.instance_vars.select { |var| var.annotation(Crumble::ORM::Column) || var.annotation(Crumble::ORM::IdColumn) } %}
+            {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
               when {{model_col.name.stringify}}
                 self.{{model_col.name}} = res.read(typeof(@{{model_col.name}}.value))
             {% end %}
@@ -169,7 +169,7 @@ module Crumble::ORM
     end
 
     macro column_values
-      { {{@type.instance_vars.select { |var| var.annotation(Crumble::ORM::Column) }.map { |var| "#{var.name}: @#{var.name}.value".id }.splat}} }
+      { {{@type.instance_vars.select { |var| var.annotation(Orma::Column) }.map { |var| "#{var.name}: @#{var.name}.value".id }.splat}} }
     end
 
     def self.ensure_table_exists!
@@ -188,10 +188,10 @@ module Crumble::ORM
 
     macro db_column_statements
       [
-        {% for var in @type.instance_vars.select { |v| v.annotation(Crumble::ORM::IdColumn) } %}
+        {% for var in @type.instance_vars.select { |v| v.annotation(Orma::IdColumn) } %}
           "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})} PRIMARY KEY",
         {% end %}
-        {% for var in @type.instance_vars.select { |v| v.annotation(Crumble::ORM::Column) } %}
+        {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Column) } %}
           "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}",
         {% end %}
       ] of String

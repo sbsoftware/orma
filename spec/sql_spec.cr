@@ -1,7 +1,7 @@
 require "./spec_helper"
 require "./fake_db"
 
-class MyModel < Crumble::ORM::Base
+class MyModel < Orma::Record
   id_column id : Int64?
   column name : String?
 

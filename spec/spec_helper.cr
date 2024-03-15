@@ -1,2 +1,2 @@
 require "spec"
-require "../src/crumble-orm"
+require "../src/orma"
