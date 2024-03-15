@@ -1,1 +1,1 @@
-require "./orm"
+require "./orma/record"

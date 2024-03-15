@@ -1,6 +1,6 @@
 require "db"
 require "./attribute"
-require "./to_sql_val"
+require "../to_sql_val"
 
 module Orma
   abstract class Record
