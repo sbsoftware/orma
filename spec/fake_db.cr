@@ -38,6 +38,7 @@ class FakeDB
     _query(str) do
       # do nothing
     end
+    DB::ExecResult.new 0, 0
   end
 
   private def self._query(str)

@@ -132,7 +132,8 @@ module Orma
       if id.value
         update_record
       else
-        insert_record
+        exec_res = insert_record
+        id = exec_res.last_insert_id
       end
       notify_observers
     end
