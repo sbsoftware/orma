@@ -1,4 +1,5 @@
 require "db"
+require "./db_adapters/*"
 require "./attribute"
 require "../ext/*"
 require "digest/sha256"
@@ -61,10 +62,28 @@ module Orma
       end
     end
 
+    def self.db_connection_string
+      ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
+    end
+
     def self.db
       return @@db.not_nil! if @@db
 
-      @@db = DB.open(ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres"))
+      @@db = DB.open(db_connection_string)
+    end
+
+    def self.db_adapter
+      return @@db_adapter.not_nil! if @@db_adapter
+
+      driver_name = URI.parse(db_connection_string).scheme
+      @@db_adapter = case driver_name
+                     when "sqlite3"
+                       DbAdapters::Sqlite3.new
+                     when "postgres"
+                       DbAdapters::Postgresql.new
+                     else
+                       raise "No DB adapter for driver '#{driver_name}'"
+                     end
     end
 
     def self.add_observer(&block : Orma::Record -> Nil)
@@ -213,7 +232,7 @@ module Orma
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(Orma::IdColumn) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})} PRIMARY KEY",
+          "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Column) } %}
           "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}",
@@ -222,13 +241,11 @@ module Orma
     end
 
     def self.db_type_for(klass)
-      case klass
-      in Int64.class then "BIGSERIAL"
-      in Int32.class then "SERIAL"
-      in String.class then "VARCHAR"
-      in Bool.class then "BOOLEAN"
-      in Time.class then "TIMESTAMP"
-      end
+      db_adapter.db_type_for(klass)
+    end
+
+    def self.primary_key_column_statement
+      db_adapter.primary_key_column_statement
     end
 
     abstract def id
