@@ -1,6 +1,8 @@
 require "db"
 require "./attribute"
 require "../ext/*"
+require "digest/sha256"
+require "crypto/bcrypt/password"
 
 module Orma
   abstract class Record
@@ -29,6 +31,27 @@ module Orma
 
       def self.{{type_decl.var}}(value)
         Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+      end
+    end
+
+    macro password_column(name)
+      @[Orma::Column]
+      getter {{name.id}}_hash : Orma::Attribute(String?) = Orma::Attribute(String?).new({{@type.resolve}}, {{name.id.symbolize}}, nil)
+
+      def verify_{{name.id}}(verified_password)
+        return false unless %pw_hash = {{name.id}}_hash.value
+
+        sha256_digest = Digest::SHA256.new
+        sha256_digest << verified_password
+        bcrypt_hash = Crypto::Bcrypt::Password.new(%pw_hash)
+        bcrypt_hash.verify(sha256_digest.hexfinal)
+      end
+
+      def {{name.id}}=(new_password)
+        sha256_digest = Digest::SHA256.new
+        sha256_digest << new_password
+        bcrypt_hash = Crypto::Bcrypt::Password.create(sha256_digest.hexfinal)
+        @{{name.id}}_hash = Orma::Attribute(String?).new(self.class, {{name.id.symbolize}}, bcrypt_hash.to_s)
       end
     end
 
