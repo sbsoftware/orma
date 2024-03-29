@@ -12,26 +12,37 @@ module Orma
 
     annotation Orma::IdColumn; end
     annotation Orma::Column; end
+    annotation Orma::Deprecated; end
 
     macro id_column(type_decl)
       @[Orma::IdColumn]
       _column({{type_decl}})
+      _define_setter({{type_decl}})
     end
 
     macro column(type_decl)
       @[Orma::Column]
+      _column({{type_decl}})
+      _define_setter({{type_decl}})
+    end
+
+    macro deprecated_column(type_decl)
+      @[Orma::Column]
+      @[Orma::Deprecated]
       _column({{type_decl}})
     end
 
     macro _column(type_decl)
       getter {{type_decl.var}} : Orma::Attribute({{type_decl.type}}) = Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{[type_decl.var.symbolize, type_decl.value].splat}})
 
-      def {{type_decl.var}}=(new_val)
-        {{type_decl.var}}.value = new_val
-      end
-
       def self.{{type_decl.var}}(value)
         Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+      end
+    end
+
+    macro _define_setter(type_decl)
+      def {{type_decl.var}}=(new_val)
+        {{type_decl.var}}.value = new_val
       end
     end
 
@@ -159,8 +170,8 @@ module Orma
         {% begin %}
           case column
             {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
-              when {{model_col.name.stringify}}
-                self.{{model_col.name}} = res.read(typeof(@{{model_col.name}}.value))
+              when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
+                @{{model_col.name}}.value = res.read(typeof(@{{model_col.name}}.value))
             {% end %}
           else
             puts "Unknown column name #{column}"
@@ -215,8 +226,19 @@ module Orma
       { {{@type.instance_vars.select { |var| var.annotation(Orma::Column) }.map { |var| "#{var.name}: @#{var.name}.value".id }.splat}} }
     end
 
+    def self.continuous_migration!
+      ensure_table_exists!
+      deprecate_columns!
+    end
+
     def self.ensure_table_exists!
       db.exec table_creation_sql
+    end
+
+    def self.deprecate_columns!
+      column_deprecation_statements.each do |sql|
+        db.exec sql
+      end
     end
 
     def self.table_creation_sql
@@ -227,6 +249,20 @@ module Orma
         db_column_statements.join(qry, ", ")
         qry << ")"
       end
+    end
+
+    def self.column_deprecation_statements
+      column_names = db.query("SELECT * FROM #{table_name} LIMIT 1").column_names
+
+      statements = [] of String
+
+      {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Deprecated) } %}
+        if column_names.includes?({{var.name.id.stringify}})
+          statements << "ALTER TABLE #{table_name} RENAME COLUMN {{var.name.id}} TO _{{var.name.id}}_deprecated"
+        end
+      {% end %}
+
+      statements
     end
 
     macro db_column_statements
