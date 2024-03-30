@@ -228,11 +228,24 @@ module Orma
 
     def self.continuous_migration!
       ensure_table_exists!
+      ensure_columns_exist!
       deprecate_columns!
     end
 
     def self.ensure_table_exists!
       db.exec table_creation_sql
+    end
+
+    def self.ensure_columns_exist!
+      column_names = query_column_names
+
+      {% for var in @type.instance_vars %}
+        {% if var.annotation(Orma::Column) && !var.annotation(Orma::Deprecated) %}
+          unless column_names.includes?({{var.name.stringify}})
+            db.exec "ALTER TABLE #{table_name} ADD COLUMN {{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}"
+          end
+        {% end %}
+      {% end %}
     end
 
     def self.deprecate_columns!
@@ -252,8 +265,7 @@ module Orma
     end
 
     def self.column_deprecation_statements
-      column_names = db.query("SELECT * FROM #{table_name} LIMIT 1").column_names
-
+      column_names = query_column_names
       statements = [] of String
 
       {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Deprecated) } %}
@@ -263,6 +275,10 @@ module Orma
       {% end %}
 
       statements
+    end
+
+    def self.query_column_names
+      db.query("SELECT * FROM #{table_name} LIMIT 1").column_names
     end
 
     macro db_column_statements
