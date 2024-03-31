@@ -186,7 +186,8 @@ module Orma
         update_record
       else
         exec_res = insert_record
-        id = exec_res.last_insert_id
+        # need to cast `#last_insert_id : Int64` to whatever `id`s type is
+        self.id = {{@type.instance_vars.find { |v| v.annotation(Orma::IdColumn) }.type.type_vars.first.union_types.find { |tn| tn != Nil }}}.new(exec_res.last_insert_id)
       end
       notify_observers
     end
