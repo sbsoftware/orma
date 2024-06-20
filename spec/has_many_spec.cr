@@ -25,7 +25,7 @@ describe "the list class" do
     it "returns an empty Array for a new List" do
       list = HasManySpec::List.new
       list.id = 594
-      list.has_many_spec_items.should eq([] of HasManySpec::Item)
+      list.has_many_spec_items.to_a.should eq([] of HasManySpec::Item)
     end
 
     it "executes the correct SQL query" do

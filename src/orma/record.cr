@@ -1,6 +1,7 @@
 require "db"
 require "./db_adapters/*"
 require "./attribute"
+require "./query"
 require "../ext/*"
 require "digest/sha256"
 require "crypto/bcrypt/password"
@@ -128,11 +129,11 @@ module Orma
     end
 
     def self.all
-      query_many("SELECT * FROM #{table_name}")
+      Query(self).new
     end
 
     def self.where(conditions)
-      query_many("SELECT * FROM #{table_name} WHERE #{conditions_string(conditions)}")
+      Query(self).new(conditions_string(conditions))
     end
 
     def self.conditions_string(conditions)
@@ -142,12 +143,6 @@ module Orma
           val.to_sql_where_condition(str)
           str << " AND " unless i == conditions.size - 1
         end
-      end
-    end
-
-    def self.query_many(sql)
-      db.query(sql) do |res|
-        load_many_from_result(res)
       end
     end
 

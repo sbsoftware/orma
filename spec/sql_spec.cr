@@ -29,17 +29,17 @@ describe "MyModel" do
   describe ".where" do
     it "generates the correct SQL query for String values" do
       FakeDB.expect("SELECT * FROM my_models WHERE name='Test'")
-      models = MyModel.where({"name" => "Test"})
+      models = MyModel.where({"name" => "Test"}).to_a
     end
 
     it "generates the correct SQL query for Int64 values" do
       FakeDB.expect("SELECT * FROM my_models WHERE id=122")
-      models = MyModel.where({"id" => 122_i64})
+      models = MyModel.where({"id" => 122_i64}).to_a
     end
 
     it "generates the correct SQL query for mixed values" do
       FakeDB.expect("SELECT * FROM my_models WHERE id=122 AND name='Stefanie'")
-      models = MyModel.where({"id" => 122_i64, "name" => "Stefanie"})
+      models = MyModel.where({"id" => 122_i64, "name" => "Stefanie"}).to_a
     end
   end
 
