@@ -5,7 +5,7 @@ class String
 
   def to_sql_value(io : IO)
     io << "'"
-    io << self
+    io << self.gsub("'", "''")
     io << "'"
   end
 end
