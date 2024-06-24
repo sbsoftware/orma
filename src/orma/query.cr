@@ -39,9 +39,7 @@ class Orma::Query(T)
   end
 
   def count
-    db.query(count_query) do |res|
-      res.read(Int64)
-    end
+    db.scalar(count_query).as(Int64)
   end
 
   def to_a
