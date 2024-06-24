@@ -33,7 +33,7 @@ class Orma::Query(T)
   end
 
   private def load_batch(batch_no, batch_size)
-    db.query("#{find_all_query} OFFSET #{batch_no * batch_size} LIMIT #{batch_size}") do |res|
+    db.query("#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}") do |res|
       T.load_many_from_result(res)
     end
   end

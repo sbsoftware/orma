@@ -46,13 +46,13 @@ module Orma::FindEachSpec
 
       describe "with batch_size = 2" do
         it "should yield all records but load in two batches" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} OFFSET 0 LIMIT 2").set_result(
+          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 0").set_result(
             [
               {"id" => 7, "name" => "One"} of String => DB::Any,
               {"id" => 13, "name" => "Two"} of String => DB::Any
             ]
           )
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} OFFSET 2 LIMIT 2").set_result(
+          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 2").set_result(
             [
               {"id" => 19, "name" => "Three"} of String => DB::Any
             ]
@@ -107,13 +107,13 @@ module Orma::FindEachSpec
 
       describe "with batch_size = 2" do
         it "should yield all records but load in two batches" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' OFFSET 0 LIMIT 2").set_result(
+          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 0").set_result(
             [
               {"id" => 8, "name" => "Test"} of String => DB::Any,
               {"id" => 14, "name" => "Test"} of String => DB::Any
             ]
           )
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' OFFSET 2 LIMIT 2").set_result(
+          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 2").set_result(
             [
               {"id" => 20, "name" => "Test"} of String => DB::Any
             ]
