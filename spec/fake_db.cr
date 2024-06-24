@@ -41,9 +41,24 @@ class FakeDB
     DB::ExecResult.new 0, 0
   end
 
+  def self.scalar(str)
+    query = next_query(str)
+    query.result.try(&.values).try(&.first?).try(&.values).try(&.first?) || Slice[0]
+  end
+
   private def self._query(str)
-    query = @@queries.shift?
-    raise "Expected query\n\"#{query.query}\"\nbut got\n\"#{str}\"\ninstead" if query && query.query != str
+    query = next_query(str)
     yield query.try &.result || FakeResult.new([] of Hash(String, DB::Any))
+  end
+
+  private def self.next_query(str)
+    query = @@queries.shift?
+    if query
+      raise "Expected query\n\"#{query.query}\"\nbut got\n\"#{str}\"\ninstead" if query.query != str
+
+      query
+    else
+      raise "Unexpected query\n\"#{str}\""
+    end
   end
 end
