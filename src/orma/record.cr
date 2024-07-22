@@ -204,7 +204,7 @@ module Orma
 
     def insert_record
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id } %}
-        self.created_at = Time.local
+        self.created_at = Time.utc
       {% end %}
       query = String.build do |qry|
         qry << "INSERT INTO "
