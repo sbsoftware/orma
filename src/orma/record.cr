@@ -188,6 +188,10 @@ module Orma
     end
 
     def update_record
+      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
+        self.updated_at = Time.utc
+      {% end %}
+
       query = String.build do |qry|
         qry << "UPDATE "
         qry << table_name
@@ -203,9 +207,13 @@ module Orma
     end
 
     def insert_record
-      {% if @type.instance_vars.any? { |v| v.name == "created_at".id } %}
+      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Orma::Column) } %}
         self.created_at = Time.utc
       {% end %}
+      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
+        self.updated_at = created_at
+      {% end %}
+
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
