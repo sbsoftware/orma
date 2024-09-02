@@ -8,4 +8,8 @@ struct Time
     io << self
     io << "'"
   end
+
+  def self.from_http_param(str)
+    parse_rfc3339(str)
+  end
 end

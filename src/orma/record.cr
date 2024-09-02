@@ -74,6 +74,8 @@ module Orma
       end
     end
 
+    def initialize; end
+
     def self.db_connection_string
       ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
     end
@@ -311,3 +313,5 @@ module Orma
     end
   end
 end
+
+require "./record/from_http_params"

@@ -1,0 +1,74 @@
+require "./spec_helper"
+require "sqlite3"
+
+module Orma::FromHttpParamsSpec
+  class MyModel < Orma::Record
+    id_column id : Int32?
+    column name : String?
+    column identifier : String?
+    column age : Int32?
+    column big_age : Int64?
+    column admin : Bool?
+    column created_at : Time?
+
+    def self.db_connection_string
+      "sqlite3://./test.db"
+    end
+  end
+
+  describe MyModel do
+    before_all do
+      MyModel.continuous_migration!
+    end
+
+    after_all do
+      File.delete("./test.db")
+    end
+
+    describe "MyModel.from_http_params" do
+      it "should create a new instance" do
+        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z"})
+        my_model = MyModel.from_http_params(params)
+        my_model.save
+
+        # reload
+        my_model = MyModel.find(my_model.id)
+        my_model.should_not be_nil
+
+        if my_model
+          my_model.id.value.should_not be_nil
+          my_model.name.value.should eq("X")
+          my_model.identifier.value.should eq("1234")
+          my_model.age.value.should eq(32)
+          my_model.big_age.value.should eq(123412345123456)
+          my_model.admin.value.should be_true
+          my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+        end
+      end
+    end
+
+    describe "MyModel#assign_http_params" do
+      it "should assign attributes to an existing instance" do
+        my_model = MyModel.new
+        my_model.name = "Test"
+        my_model.save
+
+        # reload
+        my_model = MyModel.find(my_model.id)
+        my_model.should_not be_nil
+
+        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z"})
+        my_model.assign_http_params(params)
+
+        if my_model
+          my_model.name.value.should eq("X")
+          my_model.identifier.value.should eq("1234")
+          my_model.age.value.should eq(32)
+          my_model.big_age.value.should eq(123412345123456)
+          my_model.admin.value.should be_true
+          my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+        end
+      end
+    end
+  end
+end
