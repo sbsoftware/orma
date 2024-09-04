@@ -22,5 +22,11 @@ module Orma::PasswordColumnSpec
       model.verify_password("other").should be_false
       model.verify_password("").should be_false
     end
+
+    it "never verifies nil as password" do
+      model = MyModel.new
+      model.password = nil
+      model.verify_password(nil).should be_false
+    end
   end
 end

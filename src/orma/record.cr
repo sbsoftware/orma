@@ -51,7 +51,7 @@ module Orma
       @[Orma::Column]
       getter {{name.id}}_hash : ::Orma::Attribute(String?) = ::Orma::Attribute(String?).new(::{{@type.resolve}}, {{name.id.symbolize}}, nil)
 
-      def verify_{{name.id}}(verified_password)
+      def verify_{{name.id}}(verified_password : String)
         return false unless %pw_hash = {{name.id}}_hash.value
 
         sha256_digest = Digest::SHA256.new
@@ -60,11 +60,19 @@ module Orma
         bcrypt_hash.verify(sha256_digest.hexfinal)
       end
 
-      def {{name.id}}=(new_password)
+      def verify_{{name.id}}(_pw : Nil)
+        false
+      end
+
+      def {{name.id}}=(new_password : String)
         sha256_digest = Digest::SHA256.new
         sha256_digest << new_password
         bcrypt_hash = Crypto::Bcrypt::Password.create(sha256_digest.hexfinal)
-        @{{name.id}}_hash = ::Orma::Attribute(String?).new(self.class, {{name.id.symbolize}}, bcrypt_hash.to_s)
+        @{{name.id}}_hash.value = bcrypt_hash.to_s
+      end
+
+      def {{name.id}}=(_pw : Nil)
+        @{{name.id}}_hash.value = nil
       end
     end
 
