@@ -23,7 +23,8 @@ module Orma
           {% begin %}
             case key
             {% for ivar in @type.instance_vars %}
-            when {{ivar.name.stringify}}
+            {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
+            when {{setter.stringify}}
               %var{ivar.name} = {{ivar.type.type_vars.first.union_types.select { |t| t != Nil }.first}}.from_http_param(value)
             {% end %}
             end
@@ -32,7 +33,8 @@ module Orma
 
         {% for ivar in @type.instance_vars %}
           if %var{ivar.name}
-            self.{{ivar.name.id}} = %var{ivar.name}
+            {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
+            self.{{setter}} = %var{ivar.name}
           else
             {% if !ivar.type.type_vars.first.union_types.includes?(Nil) %}
               raise ArgumentError.new("Missing attribute: {{ivar.name.id}}")
@@ -47,13 +49,14 @@ module Orma
         HTTP::Params.parse(params) do |key, value|
           case key
           {% for ivar in @type.instance_vars %}
-          when {{ivar.name.stringify}}
+          {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
+          when {{setter.stringify}}
             %parsed_value = {{ivar.type.type_vars.first.union_types.select { |t| t != Nil }.first }}.from_http_param(value)
             if %parsed_value
-              self.{{ivar.name.id}} = %parsed_value
+              self.{{setter}} = %parsed_value
             else
               {% if ivar.type.type_vars.first.union_types.includes?(Nil) %}
-                self.{{ivar.name.id}} = nil
+                self.{{setter}} = nil
               {% else %}
                 raise ArgumentError.new("Invalid value #{value.dump} for {{ivar.name.id}}")
               {% end %}

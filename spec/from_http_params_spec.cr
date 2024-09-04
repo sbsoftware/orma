@@ -10,6 +10,7 @@ module Orma::FromHttpParamsSpec
     column big_age : Int64?
     column admin : Bool?
     column created_at : Time?
+    password_column password
 
     def self.db_connection_string
       "sqlite3://./test.db"
@@ -27,7 +28,7 @@ module Orma::FromHttpParamsSpec
 
     describe "MyModel.from_http_params" do
       it "should create a new instance" do
-        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z"})
+        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z", password: "test"})
         my_model = MyModel.from_http_params(params)
         my_model.save
 
@@ -43,6 +44,7 @@ module Orma::FromHttpParamsSpec
           my_model.big_age.value.should eq(123412345123456)
           my_model.admin.value.should be_true
           my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+          my_model.verify_password("test").should be_true
         end
       end
     end
@@ -51,13 +53,14 @@ module Orma::FromHttpParamsSpec
       it "should assign attributes to an existing instance" do
         my_model = MyModel.new
         my_model.name = "Test"
+        my_model.password = "foo"
         my_model.save
 
         # reload
         my_model = MyModel.find(my_model.id)
         my_model.should_not be_nil
 
-        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z"})
+        params = URI::Params.encode({name: "X", identifier: "1234", age: "32", big_age: "123412345123456", admin: "true", created_at: "2024-08-26T22:07:35Z", password: "test"})
         my_model.assign_http_params(params)
 
         if my_model
@@ -67,6 +70,7 @@ module Orma::FromHttpParamsSpec
           my_model.big_age.value.should eq(123412345123456)
           my_model.admin.value.should be_true
           my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+          my_model.verify_password("test").should be_true
         end
       end
     end

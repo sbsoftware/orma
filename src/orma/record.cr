@@ -48,7 +48,7 @@ module Orma
     end
 
     macro password_column(name)
-      @[Orma::Column]
+      @[Orma::Column(setter: {{name.id}})]
       getter {{name.id}}_hash : ::Orma::Attribute(String?) = ::Orma::Attribute(String?).new(::{{@type.resolve}}, {{name.id.symbolize}}, nil)
 
       def verify_{{name.id}}(verified_password : String)
