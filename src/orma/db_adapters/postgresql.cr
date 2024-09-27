@@ -14,4 +14,20 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
   def primary_key_column_statement
     "PRIMARY KEY"
   end
+
+  def query_index_names
+    names = [] of String
+
+    db.query("SELECT indexname FROM pg_indexes") do |res|
+      res.each do
+        res.each_column do |column|
+          if column == "indexname"
+            names << res.read(String)
+          end
+        end
+      end
+    end
+
+    names
+  end
 end

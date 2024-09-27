@@ -13,6 +13,7 @@ module Orma
 
     annotation Orma::IdColumn; end
     annotation Orma::Column; end
+    annotation Orma::Unique; end
     annotation Orma::Deprecated; end
 
     macro id_column(type_decl)
@@ -21,8 +22,11 @@ module Orma
       _define_setter({{type_decl}})
     end
 
-    macro column(type_decl)
+    macro column(type_decl, unique = false)
       @[Orma::Column]
+      {% if unique %}
+        @[Orma::Unique]
+      {% end %}
       _column({{type_decl}})
       _define_setter({{type_decl}})
     end
@@ -100,9 +104,9 @@ module Orma
       driver_name = URI.parse(db_connection_string).scheme
       @@db_adapter = case driver_name
                      when "sqlite3"
-                       DbAdapters::Sqlite3.new
+                       DbAdapters::Sqlite3.new(db)
                      when "postgres"
-                       DbAdapters::Postgresql.new
+                       DbAdapters::Postgresql.new(db)
                      else
                        raise "No DB adapter for driver '#{driver_name}'"
                      end
@@ -243,6 +247,7 @@ module Orma
     def self.continuous_migration!
       ensure_table_exists!
       ensure_columns_exist!
+      ensure_unique_indexes_exist!
       deprecate_columns!
     end
 
@@ -257,6 +262,19 @@ module Orma
         {% if var.annotation(Orma::Column) && !var.annotation(Orma::Deprecated) %}
           unless column_names.includes?({{var.name.stringify}})
             db.exec "ALTER TABLE #{table_name} ADD COLUMN {{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}"
+          end
+        {% end %}
+      {% end %}
+    end
+
+    def self.ensure_unique_indexes_exist!
+      index_names = db_adapter.query_index_names
+
+      {% for ivar in @type.instance_vars %}
+        {% if ivar.annotation(Orma::Column) && ivar.annotation(Orma::Unique) && !ivar.annotation(Orma::Deprecated) %}
+          index_name = "idx_#{table_name}_{{ivar}}"
+          unless index_names.includes?(index_name)
+            db.exec "CREATE UNIQUE INDEX #{index_name} ON #{table_name} ({{ivar}})"
           end
         {% end %}
       {% end %}
