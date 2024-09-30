@@ -24,8 +24,7 @@ module Orma::TimestampsSpec
 
     describe "#created_at" do
       it "should be set automatically on record creation" do
-        my_record = MyRecord.new
-        my_record.name = "Test"
+        my_record = MyRecord.new(name: "Test")
         my_record.save
         my_record.created_at.value.should_not be_nil
 
@@ -43,8 +42,7 @@ module Orma::TimestampsSpec
 
     describe "#updated_at" do
       it "should be set automatically on record creation" do
-        my_record = MyRecord.new
-        my_record.name = "Test"
+        my_record = MyRecord.new(name: "Test")
         my_record.save
         my_record.updated_at.value.should_not be_nil
         my_record.updated_at.value.to_s.should eq(my_record.created_at.value.to_s)
@@ -56,8 +54,7 @@ module Orma::TimestampsSpec
       end
 
       it "should be set automatically on record update" do
-        my_record = MyRecord.new
-        my_record.name = "Test"
+        my_record = MyRecord.new(name: "Test")
         my_record.save
 
         other_instance = MyRecord.find(my_record.id)

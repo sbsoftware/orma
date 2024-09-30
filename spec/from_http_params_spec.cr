@@ -51,9 +51,7 @@ module Orma::FromHttpParamsSpec
 
     describe "MyModel#assign_http_params" do
       it "should assign attributes to an existing instance" do
-        my_model = MyModel.new
-        my_model.name = "Test"
-        my_model.password = "foo"
+        my_model = MyModel.new(name: "Test", password: "foo")
         my_model.save
 
         # reload

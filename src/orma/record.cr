@@ -88,6 +88,14 @@ module Orma
 
     def initialize; end
 
+    def initialize(**args : **T) forall T
+      {% for key in T.keys.map(&.id) %}
+        {% if @type.instance_vars.select { |iv| iv.annotation(Orma::Column) || iv.annotation(Orma::IdColumn) }.reject { |iv| iv.annotation(Orma::Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Orma::Column)) && ann[:setter].id == key)} %}
+          self.{{key}} = args[{{key.symbolize}}]
+        {% end %}
+      {% end %}
+    end
+
     def self.db_connection_string
       ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
     end

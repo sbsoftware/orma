@@ -21,12 +21,10 @@ module Orma::UniqueSpec
     end
 
     it "raises on attempted uniqueness violation" do
-      record1 = MyRecord.new
-      record1.name = "Test"
+      record1 = MyRecord.new(name: "Test")
       record1.save
 
-      record2 = MyRecord.new
-      record2.name = "Test"
+      record2 = MyRecord.new(name: "Test")
 
       expect_raises(SQLite3::Exception) do
         record2.save
