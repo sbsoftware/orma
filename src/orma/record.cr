@@ -124,6 +124,24 @@ module Orma
       {% end %}
     end
 
+    def initialize(db_res : DB::ResultSet | FakeResult)
+      db_res.each_column do |column|
+        {% begin %}
+          case column
+            {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+              when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
+                {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
+                {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
+                %value{model_col} = db_res.read({{read_type}})
+                if %value{model_col}
+                  @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col})
+                end
+            {% end %}
+          end
+        {% end %}
+      end
+    end
+
     def self.db_connection_string
       ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
     end
@@ -198,37 +216,16 @@ module Orma
 
     def self.query_one(sql)
       db.query_one(sql) do |res|
-        new.load_one_from_result(res)
+        new(res)
       end
     end
 
     def self.load_many_from_result(res)
       instances = [] of self
       res.each do
-        instances << new.load_one_from_result(res)
+        instances << new(res)
       end
       instances
-    end
-
-    def load_one_from_result(res)
-      res.each_column do |column|
-        {% begin %}
-          case column
-            {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
-              when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
-                {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
-                {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
-                %value{model_col} = res.read({{read_type}})
-                if %value{model_col}
-                  @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col})
-                end
-            {% end %}
-          else
-            puts "Unknown column name #{column}"
-          end
-        {% end %}
-      end
-      self
     end
 
     def save
