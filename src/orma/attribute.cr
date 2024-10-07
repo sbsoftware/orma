@@ -20,6 +20,38 @@ module Orma
       value == other
     end
 
+    def >(other : self)
+      value > other.value
+    end
+
+    def >(other : T)
+      value > other
+    end
+
+    def >=(other : self)
+      value >= other.value
+    end
+
+    def >=(other : T)
+      value >= other
+    end
+
+    def <(other : self)
+      value < other.value
+    end
+
+    def <(other : T)
+      value < other
+    end
+
+    def <=(other : self)
+      value <= other.value
+    end
+
+    def <=(other : T)
+      value <= other
+    end
+
     def to_s(io)
       io << value
     end
