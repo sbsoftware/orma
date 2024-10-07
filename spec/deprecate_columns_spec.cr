@@ -40,7 +40,7 @@ module Orma::DeprecateColumnsSpec
       MyRecord.deprecate_columns!
 
       my_record = MyRecord.find(1)
-      my_record.name.value.should eq("Test")
+      my_record.name.should eq("Test")
     end
   end
 end

@@ -38,25 +38,55 @@ module Orma
     end
 
     macro _column(type_decl)
-      getter {{type_decl.var}} : ::Orma::Attribute({{type_decl.type}}) = ::Orma::Attribute({{type_decl.type}}).new(::{{@type.resolve}}, {{[type_decl.var.symbolize, type_decl.value].splat}})
+      {% if type_decl.type.resolve.union_types.includes?(Nil) %}
+        {% col_type = type_decl.type.resolve.union_types.find { |t| t != Nil } %}
+      {% else %}
+        {% col_type = type_decl.type %}
+      {% end %}
+
+      {% if type_decl.type.resolve.union_types.includes?(Nil) %}
+        {% if type_decl.value %}
+          getter {{type_decl.var}} : ::Orma::Attribute({{col_type}})? = ::Orma::Attribute({{col_type}}).new(::{{@type.resolve}}, {{type_decl.var.symbolize}}, {{type_decl.value}})
+        {% else %}
+          getter {{type_decl.var}} : ::Orma::Attribute({{col_type}})?
+        {% end %}
+      {% else %}
+        {% if type_decl.value %}
+          getter {{type_decl.var}} : ::Orma::Attribute({{type_decl.type}}) = ::Orma::Attribute({{type_decl.type}}).new(::{{@type.resolve}}, {{type_decl.var.symbolize}}, {{type_decl.value}})
+        {% else %}
+          getter {{type_decl.var}} : ::Orma::Attribute({{type_decl.type}})
+        {% end %}
+      {% end %}
 
       def self.{{type_decl.var}}(value)
-        ::Orma::Attribute({{type_decl.type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+        ::Orma::Attribute({{col_type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+      end
+    end
+
+    macro _set_attribute(name, value)
+      if %var = @{{name}}
+        %var.value = {{value}}
+      else
+        @{{name}} = ::Orma::Attribute.new(self.class, {{name.symbolize}}, {{value}})
       end
     end
 
     macro _define_setter(type_decl)
+      def {{type_decl.var}}=(_new_val : Nil)
+        @{{type_decl.var}} = nil
+      end
+
       def {{type_decl.var}}=(new_val)
-        {{type_decl.var}}.value = new_val
+        _set_attribute({{type_decl.var}}, new_val)
       end
     end
 
     macro password_column(name)
       @[Orma::Column(setter: {{name.id}})]
-      getter {{name.id}}_hash : ::Orma::Attribute(String?) = ::Orma::Attribute(String?).new(::{{@type.resolve}}, {{name.id.symbolize}}, nil)
+      getter {{name.id}}_hash : ::Orma::Attribute(String)?
 
       def verify_{{name.id}}(verified_password : String)
-        return false unless %pw_hash = {{name.id}}_hash.value
+        return false unless %pw_hash = {{name.id}}_hash.try(&.value)
 
         sha256_digest = Digest::SHA256.new
         sha256_digest << verified_password
@@ -72,11 +102,11 @@ module Orma
         sha256_digest = Digest::SHA256.new
         sha256_digest << new_password
         bcrypt_hash = Crypto::Bcrypt::Password.create(sha256_digest.hexfinal)
-        @{{name.id}}_hash.value = bcrypt_hash.to_s
+        _set_attribute({{name.id}}_hash, bcrypt_hash.to_s)
       end
 
       def {{name.id}}=(_pw : Nil)
-        @{{name.id}}_hash.value = nil
+        @{{name.id}}_hash = nil
       end
     end
 
@@ -85,8 +115,6 @@ module Orma
         {{klass}}.where({"{{@type.name.underscore.gsub(/::/, "_").id}}_id" => id})
       end
     end
-
-    def initialize; end
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
@@ -188,7 +216,12 @@ module Orma
           case column
             {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
               when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
-                @{{model_col.name}}.value = res.read(typeof(@{{model_col.name}}.value))
+                {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
+                {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
+                %value{model_col} = res.read({{read_type}})
+                if %value{model_col}
+                  @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col})
+                end
             {% end %}
           else
             puts "Unknown column name #{column}"
@@ -199,17 +232,25 @@ module Orma
     end
 
     def save
-      if id.value
+      if id
         update_record
       else
         exec_res = insert_record
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        self.id = {{@type.instance_vars.find { |v| v.annotation(Orma::IdColumn) }.type.type_vars.first.union_types.find { |tn| tn != Nil }}}.new(exec_res.last_insert_id)
+        {% if id_type = @type.instance_vars.find { |v| v.annotation(Orma::IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
+          self.id = {{id_type}}.new(exec_res.last_insert_id)
+        {% else %}
+          {% raise "No `id` column defined on #{@type}" %}
+        {% end %}
       end
       notify_observers
     end
 
     def update_record
+      unless _id = id.try(&.value)
+        raise "Cannot update record without `id`"
+      end
+
       {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
         self.updated_at = Time.utc
       {% end %}
@@ -223,17 +264,17 @@ module Orma
           v.to_sql_update_value(io)
         end
         qry << " WHERE id="
-        qry << id.value
+        qry << _id
       end
       db.exec query
     end
 
     def insert_record
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Orma::Column) } %}
-        self.created_at.value ||= Time.utc
+        self.created_at ||= Time.utc
       {% end %}
       {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
-        self.updated_at.value ||= created_at
+        self.updated_at ||= Time.utc
       {% end %}
 
       query = String.build do |qry|
@@ -249,7 +290,7 @@ module Orma
     end
 
     macro column_values
-      { {{@type.instance_vars.select { |var| var.annotation(Orma::Column) }.map { |var| "#{var.name}: @#{var.name}.value".id }.splat}} }
+      { {{@type.instance_vars.select { |var| var.annotation(Orma::Column) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
     end
 
     def self.continuous_migration!
@@ -269,7 +310,7 @@ module Orma
       {% for var in @type.instance_vars %}
         {% if var.annotation(Orma::Column) && !var.annotation(Orma::Deprecated) %}
           unless column_names.includes?({{var.name.stringify}})
-            db.exec "ALTER TABLE #{table_name} ADD COLUMN {{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}"
+            db.exec "ALTER TABLE #{table_name} ADD COLUMN {{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})}"
           end
         {% end %}
       {% end %}
@@ -324,10 +365,10 @@ module Orma
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(Orma::IdColumn) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})} #{primary_key_column_statement}",
+          "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Column) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.type_vars.first.union_types.find { |tn| tn != Nil }.id}})}",
+          "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})}",
         {% end %}
       ] of String
     end

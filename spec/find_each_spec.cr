@@ -35,7 +35,7 @@ module Orma::FindEachSpec
           ids = [] of Int32
 
           MyRecord.all.find_each do |my_record|
-            if id = my_record.id.value
+            if id = my_record.id.try(&.value)
               ids << id
             end
           end
@@ -61,7 +61,7 @@ module Orma::FindEachSpec
           ids = [] of Int32
 
           MyRecord.all.find_each(batch_size: 2) do |my_record|
-            if id = my_record.id.value
+            if id = my_record.id.try(&.value)
               ids << id
             end
           end
@@ -96,7 +96,7 @@ module Orma::FindEachSpec
           ids = [] of Int32
 
           MyRecord.where({"name" => "Test"}).find_each do |my_record|
-            if id = my_record.id.value
+            if id = my_record.id.try(&.value)
               ids << id
             end
           end
@@ -122,7 +122,7 @@ module Orma::FindEachSpec
           ids = [] of Int32
 
           MyRecord.where({"name" => "Test"}).find_each(batch_size: 2) do |my_record|
-            if id = my_record.id.value
+            if id = my_record.id.try(&.value)
               ids << id
             end
           end

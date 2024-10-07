@@ -37,13 +37,13 @@ module Orma::FromHttpParamsSpec
         my_model.should_not be_nil
 
         if my_model
-          my_model.id.value.should_not be_nil
-          my_model.name.value.should eq("X")
-          my_model.identifier.value.should eq("1234")
-          my_model.age.value.should eq(32)
-          my_model.big_age.value.should eq(123412345123456)
-          my_model.admin.value.should be_true
-          my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+          my_model.id.should_not be_nil
+          my_model.name.should eq("X")
+          my_model.identifier.should eq("1234")
+          my_model.age.should eq(32)
+          my_model.big_age.should eq(123412345123456)
+          my_model.admin.should be_true
+          my_model.created_at.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
           my_model.verify_password("test").should be_true
         end
       end
@@ -62,12 +62,12 @@ module Orma::FromHttpParamsSpec
         my_model.assign_http_params(params)
 
         if my_model
-          my_model.name.value.should eq("X")
-          my_model.identifier.value.should eq("1234")
-          my_model.age.value.should eq(32)
-          my_model.big_age.value.should eq(123412345123456)
-          my_model.admin.value.should be_true
-          my_model.created_at.value.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
+          my_model.name.should eq("X")
+          my_model.identifier.should eq("1234")
+          my_model.age.should eq(32)
+          my_model.big_age.should eq(123412345123456)
+          my_model.admin.should be_true
+          my_model.created_at.should eq(Time.utc(2024, 8, 26, 22, 7, 35))
           my_model.verify_password("test").should be_true
         end
       end

@@ -6,7 +6,7 @@ module Orma
 
     delegate :to_sql_where_condition, :to_sql_update_value, :to_sql_insert_value, to: value
 
-    def initialize(@model, @name, @value = nil); end
+    def initialize(@model, @name, @value); end
 
     def value=(new_val : Attribute(T))
       self.value = new_val.value

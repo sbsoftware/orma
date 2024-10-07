@@ -23,9 +23,9 @@ module Orma::LastInsertIdSpec
     it "should set the id after creating a new record" do
       my_record = MyRecord.new(name: "Test")
 
-      my_record.id.value.should be_nil
+      my_record.id.should be_nil
       my_record.save
-      my_record.id.value.should_not be_nil
+      my_record.id.should_not be_nil
     end
   end
 end
