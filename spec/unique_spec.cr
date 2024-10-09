@@ -4,7 +4,7 @@ require "./spec_helper"
 module Orma::UniqueSpec
   class MyRecord < Orma::Record
     id_column id : Int64?
-    column name : String?, unique: true
+    column name : String, unique: true
 
     def self.db_connection_string
       "sqlite3://./test.db"

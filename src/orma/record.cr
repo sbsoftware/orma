@@ -82,7 +82,7 @@ module Orma
     end
 
     macro password_column(name)
-      @[Orma::Column(setter: {{name.id}})]
+      @[Orma::Column(setter: {{name.id}}, transform_in: generate_{{name.id}}_hash)]
       getter {{name.id}}_hash : ::Orma::Attribute(String)?
 
       def verify_{{name.id}}(verified_password : String)
@@ -99,14 +99,17 @@ module Orma
       end
 
       def {{name.id}}=(new_password : String)
-        sha256_digest = Digest::SHA256.new
-        sha256_digest << new_password
-        bcrypt_hash = Crypto::Bcrypt::Password.create(sha256_digest.hexfinal)
-        _set_attribute({{name.id}}_hash, bcrypt_hash.to_s)
+        _set_attribute({{name.id}}_hash, generate_{{name.id}}_hash(new_password))
       end
 
       def {{name.id}}=(_pw : Nil)
         @{{name.id}}_hash = nil
+      end
+
+      def generate_{{name.id}}_hash(input)
+        sha256_digest = Digest::SHA256.new
+        sha256_digest << input
+        Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
       end
     end
 
@@ -118,8 +121,23 @@ module Orma
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
-        {% if @type.instance_vars.select { |iv| iv.annotation(Orma::Column) || iv.annotation(Orma::IdColumn) }.reject { |iv| iv.annotation(Orma::Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Orma::Column)) && ann[:setter].id == key)} %}
-          self.{{key}} = args[{{key.symbolize}}]
+        {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Orma::Column) || iv.annotation(Orma::IdColumn) }.reject { |iv| iv.annotation(Orma::Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Orma::Column)) && ann[:setter].id == key)} %}
+          {% if !ivar.type.nilable? && T[key].nilable? %}
+            {% raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
+          {% end %}
+
+          unless (%attr{ivar} = args[{{key.symbolize}}]).nil?
+            {% if (ann = ivar.annotation(Orma::Column)) && (transform_in = ann[:transform_in]) %}
+              %attr{ivar} = {{transform_in}}(%attr{ivar})
+            {% end %}
+            @{{ivar}} = ::Orma::Attribute.new(self.class, {{key.symbolize}}, %attr{ivar})
+          else
+            {% unless ivar.type.nilable? || ivar.has_default_value? %}
+              raise "{{key}} can not be nil"
+            {% end %}
+          end
+        {% else %}
+          {% raise "Not a property: #{key}" %}
         {% end %}
       {% end %}
     end
