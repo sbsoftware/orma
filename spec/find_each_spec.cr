@@ -4,7 +4,7 @@ require "./fake_db"
 module Orma::FindEachSpec
   class MyRecord < Orma::Record
     id_column id : Int32?
-    column name : String?
+    column name : String
 
     def self.db
       FakeDB

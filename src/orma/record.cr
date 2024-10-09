@@ -143,21 +143,31 @@ module Orma
     end
 
     def initialize(db_res : DB::ResultSet | FakeResult)
-      db_res.each_column do |column|
-        {% begin %}
+      {% begin %}
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+          %value{model_col.id} = nil
+        {% end %}
+
+        db_res.each_column do |column|
           case column
             {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
               when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
                 {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
-                %value{model_col} = db_res.read({{read_type}})
-                if %value{model_col}
-                  @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col})
-                end
+                %value{model_col.id} = db_res.read({{read_type}})
+            {% end %}
+          end
+        end
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+          unless %value{model_col.id}.nil?
+            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
+          else
+            {% unless model_col.type.nilable? || model_col.has_default_value? %}
+              raise "nil value encountered for `@{{model_col}}`"
             {% end %}
           end
         {% end %}
-      end
+      {% end %}
     end
 
     def self.db_connection_string
