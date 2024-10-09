@@ -38,20 +38,20 @@ module Orma
     end
 
     macro _column(type_decl)
-      {% if type_decl.type.resolve.union_types.includes?(Nil) %}
+      {% if type_decl.type.resolve.nilable? %}
         {% col_type = type_decl.type.resolve.union_types.find { |t| t != Nil } %}
       {% else %}
         {% col_type = type_decl.type %}
       {% end %}
 
-      {% if type_decl.type.resolve.union_types.includes?(Nil) %}
-        {% if type_decl.value %}
+      {% if type_decl.type.resolve.nilable? %}
+        {% unless type_decl.value.nil? %}
           getter {{type_decl.var}} : ::Orma::Attribute({{col_type}})? = ::Orma::Attribute({{col_type}}).new(::{{@type.resolve}}, {{type_decl.var.symbolize}}, {{type_decl.value}})
         {% else %}
           getter {{type_decl.var}} : ::Orma::Attribute({{col_type}})?
         {% end %}
       {% else %}
-        {% if type_decl.value %}
+        {% unless type_decl.value.nil? %}
           getter {{type_decl.var}} : ::Orma::Attribute({{type_decl.type}}) = ::Orma::Attribute({{type_decl.type}}).new(::{{@type.resolve}}, {{type_decl.var.symbolize}}, {{type_decl.value}})
         {% else %}
           getter {{type_decl.var}} : ::Orma::Attribute({{type_decl.type}})

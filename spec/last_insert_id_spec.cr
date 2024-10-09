@@ -4,7 +4,7 @@ require "sqlite3"
 module Orma::LastInsertIdSpec
   class MyRecord < Orma::Record
     id_column id : Int32?
-    column name : String?
+    column name : String
 
     def self.db_connection_string
       "sqlite3://./test.db"

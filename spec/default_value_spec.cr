@@ -8,7 +8,7 @@ end
 describe "DefaultValueModel" do
   describe "setting attribute default values" do
     it "returns the default value when the attribute is queried" do
-      DefaultValueModel.new.active.should eq(true)
+      DefaultValueModel.new(id: 4_i64).active.should eq(true)
     end
 
     it "overwrites the default value when explicitly set" do

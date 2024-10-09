@@ -3,7 +3,7 @@ require "./fake_db"
 
 class MyModel < Orma::Record
   id_column id : Int64?
-  column name : String?
+  column name : String
 
   def self.db
     FakeDB
@@ -21,7 +21,7 @@ describe "MyModel" do
 
   describe ".find" do
     it "generates the correct SQL query" do
-      FakeDB.expect("SELECT * FROM my_models WHERE id=3 LIMIT 1")
+      FakeDB.expect("SELECT * FROM my_models WHERE id=3 LIMIT 1").set_result([{"id" => 3_i64, "name" => "Test"} of String => DB::Any])
       model = MyModel.find(3)
     end
   end

@@ -4,11 +4,11 @@ require "sqlite3"
 module Orma::FromHttpParamsSpec
   class MyModel < Orma::Record
     id_column id : Int32?
-    column name : String?
-    column identifier : String?
+    column name : String
+    column identifier : String
     column age : Int32?
     column big_age : Int64?
-    column admin : Bool?
+    column admin : Bool = false
     column created_at : Time?
     password_column password
 
@@ -51,7 +51,7 @@ module Orma::FromHttpParamsSpec
 
     describe "MyModel#assign_http_params" do
       it "should assign attributes to an existing instance" do
-        my_model = MyModel.new(name: "Test", password: "foo")
+        my_model = MyModel.new(name: "Test", identifier: "xyz", password: "foo")
         my_model.save
 
         # reload

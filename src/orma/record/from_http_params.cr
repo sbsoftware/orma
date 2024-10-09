@@ -32,11 +32,13 @@ module Orma
         end
 
         {% for ivar in @type.instance_vars %}
-          if %var{ivar.name}
-            {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
-            self.{{setter}} = %var{ivar.name}
+          unless %var{ivar.name}.nil?
+            {% if (ann = ivar.annotation(Orma::Column)) && (transform_in = ann[:transform_in]) %}
+              %var{ivar.name} = {{transform_in}}(%var{ivar.name})
+            {% end %}
+            @{{ivar.name}} = ::Orma::Attribute.new(self.class, {{ivar.name.symbolize}}, %var{ivar.name})
           else
-            {% if !ivar.type.nilable? %}
+            {% unless ivar.type.nilable? || ivar.has_default_value? %}
               raise ArgumentError.new("Missing attribute: {{ivar.name.id}}")
             {% end %}
           end
