@@ -8,6 +8,7 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     in String.class then "VARCHAR"
     in Bool.class then "BOOLEAN"
     in Time.class then "TIMESTAMP"
+    in Slice(UInt8).class then "BLOB"
     end
   end
 

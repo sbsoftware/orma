@@ -8,6 +8,7 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
       in String.class then "TEXT"
       in Bool.class then "INTEGER"
       in Time.class then "INTEGER"
+      in Slice(UInt8).class then "BLOB"
     end
   end
 
