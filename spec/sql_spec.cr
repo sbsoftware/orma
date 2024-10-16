@@ -41,6 +41,11 @@ describe "MyModel" do
       FakeDB.expect("SELECT * FROM my_models WHERE id=122 AND name='Stefanie'")
       models = MyModel.where({"id" => 122_i64, "name" => "Stefanie"}).to_a
     end
+
+    it "generates the correct SQL query for Array values" do
+      FakeDB.expect("SELECT * FROM my_models WHERE name IN ('Test','Blah')")
+      models = MyModel.where({"name" => ["Test", "Blah"]}).to_a
+    end
   end
 
   describe "#save" do

@@ -1,3 +1,5 @@
+require "../orma/to_sql"
+
 struct Slice(T)
   include Orma::ToSql
 
