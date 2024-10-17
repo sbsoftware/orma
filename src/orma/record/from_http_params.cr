@@ -23,7 +23,7 @@ module Orma
           {% begin %}
             case key
             {% for ivar in @type.instance_vars %}
-            {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
+            {% setter = ((ann = ivar.annotation(Column)) ? ann[:setter] : nil) || ivar.name.id %}
             when {{setter.stringify}}
               %var{ivar.name} = {{ivar.type.union_types.find { |t| t != Nil }.type_vars.first}}.from_http_param(value)
             {% end %}
@@ -33,7 +33,7 @@ module Orma
 
         {% for ivar in @type.instance_vars %}
           unless %var{ivar.name}.nil?
-            {% if (ann = ivar.annotation(Orma::Column)) && (transform_in = ann[:transform_in]) %}
+            {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
               %var{ivar.name} = {{transform_in}}(%var{ivar.name})
             {% end %}
             @{{ivar.name}} = ::Orma::Attribute.new(self.class, {{ivar.name.symbolize}}, %var{ivar.name})
@@ -51,7 +51,7 @@ module Orma
         HTTP::Params.parse(params) do |key, value|
           case key
           {% for ivar in @type.instance_vars %}
-          {% setter = ((ann = ivar.annotation(Orma::Column)) ? ann[:setter] : nil) || ivar.name.id %}
+          {% setter = ((ann = ivar.annotation(Column)) ? ann[:setter] : nil) || ivar.name.id %}
           when {{setter.stringify}}
             %parsed_value = {{ivar.type.union_types.find { |t| t != Nil }.type_vars.first }}.from_http_param(value)
             if %parsed_value

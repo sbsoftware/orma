@@ -11,29 +11,33 @@ module Orma
     @@db : DB::Database?
     @@observers = [] of Proc(self, Nil)
 
-    annotation Orma::IdColumn; end
-    annotation Orma::Column; end
-    annotation Orma::Unique; end
-    annotation Orma::Deprecated; end
+    # :nodoc:
+    annotation IdColumn; end
+    # :nodoc:
+    annotation Column; end
+    # :nodoc:
+    annotation Unique; end
+    # :nodoc:
+    annotation Deprecated; end
 
     macro id_column(type_decl)
-      @[Orma::IdColumn]
+      @[IdColumn]
       _column({{type_decl}})
       _define_setter({{type_decl}})
     end
 
     macro column(type_decl, unique = false)
-      @[Orma::Column]
+      @[Column]
       {% if unique %}
-        @[Orma::Unique]
+        @[Unique]
       {% end %}
       _column({{type_decl}})
       _define_setter({{type_decl}})
     end
 
     macro deprecated_column(type_decl)
-      @[Orma::Column]
-      @[Orma::Deprecated]
+      @[Column]
+      @[Deprecated]
       _column({{type_decl}})
     end
 
@@ -82,7 +86,7 @@ module Orma
     end
 
     macro password_column(name)
-      @[Orma::Column(setter: {{name.id}}, transform_in: generate_{{name.id}}_hash)]
+      @[Column(setter: {{name.id}}, transform_in: generate_{{name.id}}_hash)]
       getter {{name.id}}_hash : ::Orma::Attribute(String)?
 
       def verify_{{name.id}}(verified_password : String)
@@ -121,13 +125,13 @@ module Orma
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
-        {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Orma::Column) || iv.annotation(Orma::IdColumn) }.reject { |iv| iv.annotation(Orma::Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Orma::Column)) && ann[:setter].id == key)} %}
+        {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key)} %}
           {% if !ivar.type.nilable? && T[key].nilable? %}
             {% raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
           {% end %}
 
           unless (%attr{ivar} = args[{{key.symbolize}}]).nil?
-            {% if (ann = ivar.annotation(Orma::Column)) && (transform_in = ann[:transform_in]) %}
+            {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
               %attr{ivar} = {{transform_in}}(%attr{ivar})
             {% end %}
             @{{ivar}} = ::Orma::Attribute.new(self.class, {{key.symbolize}}, %attr{ivar})
@@ -144,13 +148,13 @@ module Orma
 
     def initialize(db_res : DB::ResultSet | FakeResult)
       {% begin %}
-        {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
           %value{model_col.id} = nil
         {% end %}
 
         db_res.each_column do |column|
           case column
-            {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+            {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
               when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
                 {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
@@ -158,7 +162,7 @@ module Orma
             {% end %}
           end
         end
-        {% for model_col in @type.instance_vars.select { |var| var.annotation(Orma::Column) || var.annotation(Orma::IdColumn) } %}
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
           unless %value{model_col.id}.nil?
             @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
           else
@@ -262,7 +266,7 @@ module Orma
       else
         exec_res = insert_record
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        {% if id_type = @type.instance_vars.find { |v| v.annotation(Orma::IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
+        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
           self.id = {{id_type}}.new(exec_res.last_insert_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
@@ -276,7 +280,7 @@ module Orma
         raise "Cannot update record without `id`"
       end
 
-      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
+      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
         self.updated_at = Time.utc
       {% end %}
 
@@ -295,10 +299,10 @@ module Orma
     end
 
     def insert_record
-      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Orma::Column) } %}
+      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
         self.created_at ||= Time.utc
       {% end %}
-      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Orma::Column) } %}
+      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
         self.updated_at ||= Time.utc
       {% end %}
 
@@ -315,7 +319,7 @@ module Orma
     end
 
     macro column_values
-      { {{@type.instance_vars.select { |var| var.annotation(Orma::Column) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
+      { {{@type.instance_vars.select { |var| var.annotation(Column) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
     end
 
     def self.continuous_migration!
@@ -333,7 +337,7 @@ module Orma
       column_names = query_column_names
 
       {% for var in @type.instance_vars %}
-        {% if var.annotation(Orma::Column) && !var.annotation(Orma::Deprecated) %}
+        {% if var.annotation(Column) && !var.annotation(Deprecated) %}
           unless column_names.includes?({{var.name.stringify}})
             db.exec "ALTER TABLE #{table_name} ADD COLUMN {{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})}"
           end
@@ -345,7 +349,7 @@ module Orma
       index_names = db_adapter.query_index_names
 
       {% for ivar in @type.instance_vars %}
-        {% if ivar.annotation(Orma::Column) && ivar.annotation(Orma::Unique) && !ivar.annotation(Orma::Deprecated) %}
+        {% if ivar.annotation(Column) && ivar.annotation(Unique) && !ivar.annotation(Deprecated) %}
           index_name = "idx_#{table_name}_{{ivar}}"
           unless index_names.includes?(index_name)
             db.exec "CREATE UNIQUE INDEX #{index_name} ON #{table_name} ({{ivar}})"
@@ -374,7 +378,7 @@ module Orma
       column_names = query_column_names
       statements = [] of String
 
-      {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Deprecated) } %}
+      {% for var in @type.instance_vars.select { |v| v.annotation(Deprecated) } %}
         if column_names.includes?({{var.name.id.stringify}})
           statements << "ALTER TABLE #{table_name} RENAME COLUMN {{var.name.id}} TO _{{var.name.id}}_deprecated"
         end
@@ -389,10 +393,10 @@ module Orma
 
     macro db_column_statements
       [
-        {% for var in @type.instance_vars.select { |v| v.annotation(Orma::IdColumn) } %}
+        {% for var in @type.instance_vars.select { |v| v.annotation(IdColumn) } %}
           "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
-        {% for var in @type.instance_vars.select { |v| v.annotation(Orma::Column) } %}
+        {% for var in @type.instance_vars.select { |v| v.annotation(Column) } %}
           "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})}",
         {% end %}
       ] of String
