@@ -1,3 +1,6 @@
+require "../../../spec/fake_db"
+
+# :nodoc:
 abstract class Orma::DbAdapters::Base
   getter db : DB::Database | FakeDB.class
 

@@ -1,5 +1,6 @@
 require "./base"
 
+# :nodoc:
 class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
   def db_type_for(klass)
     case klass

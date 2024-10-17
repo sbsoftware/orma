@@ -1,5 +1,6 @@
 require "./base"
 
+# :nodoc:
 class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
   def db_type_for(klass)
     case klass
