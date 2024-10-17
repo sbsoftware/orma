@@ -1,5 +1,6 @@
 require "../orma/to_sql"
 
+# :nodoc:
 struct Slice(T)
   include Orma::ToSql
 

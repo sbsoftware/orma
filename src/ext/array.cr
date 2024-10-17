@@ -1,5 +1,6 @@
 require "../orma/to_sql"
 
+# :nodoc:
 class Array(T)
   include Orma::ToSql
 

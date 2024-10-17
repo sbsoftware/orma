@@ -1,5 +1,6 @@
 require "../orma/to_sql"
 
+# :nodoc:
 struct Nil
   include Orma::ToSql
 

@@ -1,5 +1,6 @@
 require "../orma/to_sql"
 
+# :nodoc:
 struct Time
   include Orma::ToSql
 
