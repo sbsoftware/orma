@@ -198,16 +198,19 @@ module Orma
                      end
     end
 
+    # :nodoc:
     def self.add_observer(&block : Orma::Record -> Nil)
       @@observers << block
     end
 
+    # :nodoc:
     def self.notify_observers(instance)
       @@observers.each do |observer|
         observer.call(instance)
       end
     end
 
+    # :nodoc:
     def notify_observers
       self.class.notify_observers(self)
     end
