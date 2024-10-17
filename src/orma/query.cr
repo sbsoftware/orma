@@ -1,7 +1,9 @@
 class Orma::Query(T)
+  # :nodoc:
   getter where_clause : String?
   @collection : Array(T)?
 
+  # :nodoc:
   delegate :db, :table_name, to: T
 
   def initialize(@where_clause = nil); end

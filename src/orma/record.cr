@@ -41,6 +41,7 @@ module Orma
       _column({{type_decl}})
     end
 
+    # :nodoc:
     macro _column(type_decl)
       {% if type_decl.type.resolve.nilable? %}
         {% col_type = type_decl.type.resolve.union_types.find { |t| t != Nil } %}
@@ -67,6 +68,7 @@ module Orma
       end
     end
 
+    # :nodoc:
     macro _set_attribute(name, value)
       if %var = @{{name}}
         %var.value = {{value}}
@@ -75,6 +77,7 @@ module Orma
       end
     end
 
+    # :nodoc:
     macro _define_setter(type_decl)
       def {{type_decl.var}}=(_new_val : Nil)
         @{{type_decl.var}} = nil
@@ -184,6 +187,7 @@ module Orma
       @@db = DB.open(db_connection_string)
     end
 
+    # :nodoc:
     def self.db_adapter
       return @@db_adapter.not_nil! if @@db_adapter
 
@@ -239,6 +243,7 @@ module Orma
       Query(self).new(conditions_string(conditions))
     end
 
+    # :nodoc:
     def self.conditions_string(conditions)
       String.build do |str|
         conditions.each_with_index do |(col, val), i|
@@ -249,12 +254,14 @@ module Orma
       end
     end
 
+    # :nodoc:
     def self.query_one(sql)
       db.query_one(sql) do |res|
         new(res)
       end
     end
 
+    # :nodoc:
     def self.load_many_from_result(res)
       instances = [] of self
       res.each do
@@ -278,7 +285,7 @@ module Orma
       notify_observers
     end
 
-    def update_record
+    private def update_record
       unless _id = id.try(&.value)
         raise "Cannot update record without `id`"
       end
@@ -301,7 +308,7 @@ module Orma
       db.exec query
     end
 
-    def insert_record
+    private def insert_record
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
         self.created_at ||= Time.utc
       {% end %}
@@ -321,6 +328,7 @@ module Orma
       db.exec query
     end
 
+    # :nodoc:
     macro column_values
       { {{@type.instance_vars.select { |var| var.annotation(Column) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
     end
@@ -367,6 +375,7 @@ module Orma
       end
     end
 
+    # :nodoc:
     def self.table_creation_sql
       String.build do |qry|
         qry << "CREATE TABLE IF NOT EXISTS "
@@ -377,6 +386,7 @@ module Orma
       end
     end
 
+    # :nodoc:
     def self.column_deprecation_statements
       column_names = query_column_names
       statements = [] of String
@@ -390,10 +400,12 @@ module Orma
       statements
     end
 
+    # :nodoc:
     def self.query_column_names
       db.query("SELECT * FROM #{table_name} LIMIT 1").column_names
     end
 
+    # :nodoc:
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(IdColumn) } %}
@@ -405,10 +417,12 @@ module Orma
       ] of String
     end
 
+    # :nodoc:
     def self.db_type_for(klass)
       db_adapter.db_type_for(klass)
     end
 
+    # :nodoc:
     def self.primary_key_column_statement
       db_adapter.primary_key_column_statement
     end
