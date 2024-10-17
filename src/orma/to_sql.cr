@@ -1,4 +1,5 @@
 module Orma
+  # :nodoc:
   module ToSql
     def to_sql_where_condition(io : IO)
       sql_eq_operator(io)
