@@ -1,4 +1,6 @@
 class Orma::Query(T)
+  include Indexable(T)
+
   # :nodoc:
   getter where_clause : String?
   @collection : Array(T)?
@@ -6,19 +8,9 @@ class Orma::Query(T)
   # :nodoc:
   delegate :db, :table_name, to: T
 
+  delegate :size, :unsafe_fetch, to: collection
+
   def initialize(@where_clause = nil); end
-
-  def each
-    collection.each do |item|
-      yield item
-    end
-  end
-
-  def map
-    collection.map do |item|
-      yield item
-    end
-  end
 
   def find_each(*, batch_size = 1000)
     if (total_count = count) > batch_size
@@ -42,10 +34,6 @@ class Orma::Query(T)
 
   def count
     db.scalar(count_query).as(Int64)
-  end
-
-  def to_a
-    collection
   end
 
   private def count_query
