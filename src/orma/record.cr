@@ -1,4 +1,5 @@
 require "db"
+require "./db_error"
 require "./db_adapters/*"
 require "./attribute"
 require "./query"
@@ -259,6 +260,8 @@ module Orma
       db.query_one(sql) do |res|
         new(res)
       end
+    rescue err
+      raise Orma::DBError.new(err, sql)
     end
 
     # :nodoc:
@@ -305,7 +308,11 @@ module Orma
         qry << " WHERE id="
         qry << _id
       end
-      db.exec query
+      begin
+        db.exec query
+      rescue err
+        raise DBError.new(err, query)
+      end
     end
 
     private def insert_record
@@ -325,7 +332,11 @@ module Orma
         column_values.values.join(qry, ", ") { |v, io| v.to_sql_insert_value(io) }
         qry << ")"
       end
-      db.exec query
+      begin
+        db.exec query
+      rescue err
+        raise DBError.new(err, query)
+      end
     end
 
     # :nodoc:

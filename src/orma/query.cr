@@ -27,13 +27,23 @@ class Orma::Query(T)
   end
 
   private def load_batch(batch_no, batch_size)
-    db.query("#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}") do |res|
-      T.load_many_from_result(res)
+    sql = "#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}"
+    begin
+      db.query(sql) do |res|
+        T.load_many_from_result(res)
+      end
+    rescue err
+      raise DBError.new(err, sql)
     end
   end
 
   def count
-    db.scalar(count_query).as(Int64)
+    sql = count_query
+    begin
+      db.scalar(sql).as(Int64)
+    rescue err
+      raise DBError.new(err, sql)
+    end
   end
 
   private def count_query
@@ -55,8 +65,15 @@ class Orma::Query(T)
   end
 
   private def collection
-    @collection ||= db.query(find_all_query) do |res|
-      T.load_many_from_result(res)
-    end
+    @collection ||= begin
+                      sql = find_all_query
+                      begin
+                        db.query(sql) do |res|
+                          T.load_many_from_result(res)
+                        end
+                      rescue err
+                        raise DBError.new(err, sql)
+                      end
+                    end
   end
 end
