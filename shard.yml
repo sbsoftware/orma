@@ -11,6 +11,8 @@ license: MIT
 dependencies:
   db:
     github: crystal-lang/crystal-db
+  opentelemetry-sdk:
+    github: wyhaines/opentelemetry-sdk.cr
 development_dependencies:
   sqlite3:
     github: crystal-lang/crystal-sqlite3

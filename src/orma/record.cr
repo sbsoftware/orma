@@ -1,4 +1,5 @@
 require "db"
+require "../open_telemetry_instrumentation"
 require "./db_error"
 require "./db_adapters/*"
 require "./attribute"
