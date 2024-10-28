@@ -71,10 +71,14 @@ module Orma
 
     # :nodoc:
     macro _set_attribute(name, value)
-      if %var = @{{name}}
-        %var.value = {{value}}
+      unless {{value}}.nil?
+        if %var = @{{name}}
+          %var.value = {{value}}
+        else
+          @{{name}} = ::Orma::Attribute.new(self.class, {{name.symbolize}}, {{value}})
+        end
       else
-        @{{name}} = ::Orma::Attribute.new(self.class, {{name.symbolize}}, {{value}})
+        @{{name}} = {{value}}
       end
     end
 
