@@ -32,10 +32,11 @@ module Orma
         end
 
         {% for ivar in @type.instance_vars %}
+          {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
+            %var{ivar.name} = {{transform_in}}(%var{ivar.name})
+          {% end %}
+
           unless %var{ivar.name}.nil?
-            {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-              %var{ivar.name} = {{transform_in}}(%var{ivar.name})
-            {% end %}
             @{{ivar.name}} = ::Orma::Attribute.new(self.class, {{ivar.name.symbolize}}, %var{ivar.name})
           else
             {% unless ivar.type.nilable? || ivar.has_default_value? %}

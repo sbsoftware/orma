@@ -71,14 +71,14 @@ module Orma
 
     # :nodoc:
     macro _set_attribute(name, value)
-      unless {{value}}.nil?
+      unless (%value = {{value}}).nil?
         if %var = @{{name}}
-          %var.value = {{value}}
+          %var.value = %value
         else
-          @{{name}} = ::Orma::Attribute.new(self.class, {{name.symbolize}}, {{value}})
+          @{{name}} = ::Orma::Attribute.new(self.class, {{name.symbolize}}, %value)
         end
       else
-        @{{name}} = {{value}}
+        @{{name}} = %value
       end
     end
 
@@ -110,15 +110,13 @@ module Orma
         false
       end
 
-      def {{name.id}}=(new_password : String)
+      def {{name.id}}=(new_password : String?)
         _set_attribute({{name.id}}_hash, generate_{{name.id}}_hash(new_password))
       end
 
-      def {{name.id}}=(_pw : Nil)
-        @{{name.id}}_hash = nil
-      end
-
       def generate_{{name.id}}_hash(input)
+        return unless input
+
         sha256_digest = Digest::SHA256.new
         sha256_digest << input
         Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
@@ -138,10 +136,12 @@ module Orma
             {% raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
           {% end %}
 
-          unless (%attr{ivar} = args[{{key.symbolize}}]).nil?
-            {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-              %attr{ivar} = {{transform_in}}(%attr{ivar})
-            {% end %}
+          %attr{ivar} = args[{{key.symbolize}}]
+          {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
+            %attr{ivar} = {{transform_in}}(%attr{ivar})
+          {% end %}
+
+          unless %attr{ivar}.nil?
             @{{ivar}} = ::Orma::Attribute.new(self.class, {{key.symbolize}}, %attr{ivar})
           else
             {% unless ivar.type.nilable? || ivar.has_default_value? %}
