@@ -26,7 +26,7 @@ module Orma::UniqueSpec
 
       record2 = MyRecord.new(name: "Test")
 
-      expect_raises(SQLite3::Exception) do
+      expect_raises(Orma::DBError) do
         record2.save
       end
     end
