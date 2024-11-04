@@ -237,7 +237,7 @@ module Orma
       self.class.table_name
     end
 
-    def self.find(id)
+    def self.find(id : (Int | (Orma::Attribute(Int) | Nil)))
       query_one("SELECT * FROM #{table_name} WHERE id=#{id} LIMIT 1")
     end
 
