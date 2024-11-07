@@ -238,7 +238,15 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      query_one("SELECT * FROM #{table_name} WHERE id=#{id} LIMIT 1")
+      qry = String.build do |str|
+        str << "SELECT * FROM "
+        str << table_name
+        str << " WHERE id"
+        id.to_sql_where_condition(str)
+        str << " LIMIT 1"
+      end
+
+      query_one(qry)
     end
 
     def self.all
