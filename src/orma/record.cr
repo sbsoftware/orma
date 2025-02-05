@@ -130,6 +130,25 @@ module Orma
       end
     end
 
+    def self.create(**args : **T) : self forall T
+      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
+        args = args.merge(created_at: args[:created_at]? || Time.utc)
+      {% end %}
+      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
+        args = args.merge(updated_at: args[:updated_at]? || Time.utc)
+      {% end %}
+
+      {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
+        {% unless T[ivar.name.id.symbolize] %}
+          args = args.merge({{ivar.name.id}}: {{ivar.default_value}}.value)
+        {% end %}
+      {% end %}
+
+      args = args.merge(id: insert_record(**args))
+
+      new(**args)
+    end
+
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
         {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key)} %}
@@ -347,6 +366,31 @@ module Orma
       end
       begin
         db.exec query
+      rescue err
+        raise DBError.new(err, query)
+      end
+    end
+
+    # :nodoc:
+    private def self.insert_record(**args)
+      query = String.build do |qry|
+        qry << "INSERT INTO "
+        qry << table_name
+        qry << "("
+        args.keys.join(qry, ", ")
+        qry << ") VALUES ("
+        args.values.join(qry, ", ") { |v, io| v.to_sql_insert_value(io) }
+        qry << ")"
+      end
+      begin
+        res = db.exec(query)
+
+        # need to cast `#last_insert_id : Int64` to whatever `id`s type is
+        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
+          {{id_type}}.new(res.last_insert_id)
+        {% else %}
+          {% raise "No `id` column defined on #{@type}" %}
+        {% end %}
       rescue err
         raise DBError.new(err, query)
       end
