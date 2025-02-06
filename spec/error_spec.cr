@@ -3,7 +3,7 @@ require "./spec_helper"
 
 module Orma::ErrorSpec
   class Record < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
     column name : String
 
     def self.db_connection_string
@@ -46,10 +46,10 @@ module Orma::ErrorSpec
       end
     end
 
-    describe "via #save on a new record" do
+    describe "via .create" do
       it "raises an error containing the message and the query triggering it" do
         err = expect_raises(Orma::DBError) do
-          Record.new(name: "Blah").save
+          Record.create(name: "Blah")
         end
 
         err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: INSERT INTO orma_error_spec_records(name) VALUES ('Blah')")

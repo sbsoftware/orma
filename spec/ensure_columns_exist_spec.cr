@@ -3,7 +3,7 @@ require "sqlite3"
 
 module Orma::EnsureColumnsExistSpec
   class MyRecord < Orma::Record
-    id_column id : Int32?
+    id_column id : Int32
     column name : String?
     column foo : Int32
     # TODO: This column will not be created, which I think is the correct behavior but there should probably be some warning - or even an error?

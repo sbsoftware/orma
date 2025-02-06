@@ -2,7 +2,7 @@ require "./spec_helper"
 
 module HasManySpec
   class Item < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
 
     def self.db
       FakeDB
@@ -10,7 +10,7 @@ module HasManySpec
   end
 
   class List < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
 
     has_many_of HasManySpec::Item
 

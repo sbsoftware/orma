@@ -3,7 +3,7 @@ require "./spec_helper"
 
 module Orma::IndexableSpec
   class MyRecord < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
     column name : String
 
     def self.db_connection_string
@@ -14,9 +14,9 @@ module Orma::IndexableSpec
   describe "MyRecord query objects" do
     before_all do
       MyRecord.continuous_migration!
-      MyRecord.new(name: "One").save
-      MyRecord.new(name: "Two").save
-      MyRecord.new(name: "Three").save
+      MyRecord.create(name: "One")
+      MyRecord.create(name: "Two")
+      MyRecord.create(name: "Three")
     end
 
     after_all do

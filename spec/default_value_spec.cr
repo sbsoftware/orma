@@ -1,7 +1,7 @@
 require "./spec_helper"
 
 class DefaultValueModel < Orma::Record
-  id_column id : Int64?
+  id_column id : Int64
   column active : Bool = true
 end
 
@@ -12,7 +12,7 @@ describe "DefaultValueModel" do
     end
 
     it "overwrites the default value when explicitly set" do
-      DefaultValueModel.new(active: false).active.should eq(false)
+      DefaultValueModel.new(id: 4_i64, active: false).active.should eq(false)
     end
   end
 end

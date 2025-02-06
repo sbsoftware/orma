@@ -3,7 +3,7 @@ require "./spec_helper"
 
 module Orma::UniqueSpec
   class MyRecord < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
     column name : String, unique: true
 
     def self.db_connection_string
@@ -21,13 +21,10 @@ module Orma::UniqueSpec
     end
 
     it "raises on attempted uniqueness violation" do
-      record1 = MyRecord.new(name: "Test")
-      record1.save
-
-      record2 = MyRecord.new(name: "Test")
+      record1 = MyRecord.create(name: "Test")
 
       expect_raises(Orma::DBError) do
-        record2.save
+        record2 = MyRecord.create(name: "Test")
       end
     end
 

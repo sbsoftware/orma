@@ -3,7 +3,7 @@ require "sqlite3"
 
 module Orma::DeprecateColumnsSpec
   class MyRecord < Orma::Record
-    id_column id : Int32?
+    id_column id : Int32
     deprecated_column name : String
 
     def self.db_connection_string

@@ -3,7 +3,7 @@ require "./spec_helper"
 
 module Orma::FindSpec
   class Record < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
     column name : String
 
     def self.db_connection_string
@@ -14,7 +14,7 @@ module Orma::FindSpec
   describe "Record.find" do
     before_all do
       Record.continuous_migration!
-      Record.new(name: "Test").save
+      Record.create(name: "Test")
     end
 
     after_all do

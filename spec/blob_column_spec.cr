@@ -3,7 +3,7 @@ require "sqlite3"
 
 module Orma::BlobColumnSpec
   class Model < Orma::Record
-    id_column id : Int64?
+    id_column id : Int64
     column data : Bytes
 
     def self.db_connection_string
@@ -21,8 +21,7 @@ module Orma::BlobColumnSpec
     end
 
     it "should be able to save and load slices of bytes" do
-      model = Model.new(data: "Test".to_slice)
-      model.save
+      model = Model.create(data: "Test".to_slice)
 
       model2 = Model.find(1)
       model2.data.should eq("Test".to_slice)

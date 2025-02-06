@@ -2,7 +2,7 @@ require "./spec_helper"
 require "./fake_db"
 
 class MyModel < Orma::Record
-  id_column id : Int64?
+  id_column id : Int64
   column name : String
 
   def self.db
@@ -56,13 +56,12 @@ describe "MyModel" do
         my_model.save
       end
     end
+  end
 
-    context "when the instance has no id" do
-      it "generates an insert statement" do
-        my_model = MyModel.new(name: "Sabrina")
-        FakeDB.expect("INSERT INTO my_models(name) VALUES ('Sabrina')")
-        my_model.save
-      end
+  describe ".create" do
+    it "generates an insert statement" do
+      FakeDB.expect("INSERT INTO my_models(name) VALUES ('Sabrina')")
+      my_model = MyModel.create(name: "Sabrina")
     end
   end
 
