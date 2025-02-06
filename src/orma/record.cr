@@ -112,10 +112,10 @@ module Orma
       end
 
       def {{name.id}}=(new_password : String?)
-        _set_attribute({{name.id}}_hash, generate_{{name.id}}_hash(new_password))
+        _set_attribute({{name.id}}_hash, self.class.generate_{{name.id}}_hash(new_password))
       end
 
-      def generate_{{name.id}}_hash(input)
+      def self.generate_{{name.id}}_hash(input : String?)
         return unless input
 
         sha256_digest = Digest::SHA256.new
@@ -138,12 +138,6 @@ module Orma
         args = args.merge(updated_at: args[:updated_at]? || Time.utc)
       {% end %}
 
-      {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
-        {% unless T[ivar.name.id.symbolize] %}
-          args = args.merge({{ivar.name.id}}: {{ivar.default_value}}.value)
-        {% end %}
-      {% end %}
-
       args = args.merge(id: insert_record(**args))
 
       new(**args)
@@ -158,7 +152,7 @@ module Orma
 
           %attr{ivar} = args[{{key.symbolize}}]
           {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-            %attr{ivar} = {{transform_in}}(%attr{ivar})
+            %attr{ivar} = self.class.{{transform_in}}(%attr{ivar})
           {% end %}
 
           unless %attr{ivar}.nil?
@@ -372,14 +366,24 @@ module Orma
     end
 
     # :nodoc:
-    private def self.insert_record(**args)
+    private def self.insert_record(**args : **T) forall T
+      {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
+        {% unless T[ivar.name.id.symbolize] %}
+          args = args.merge({{ivar.name.id}}: {{ivar.default_value}}.value)
+        {% end %}
+      {% end %}
+
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
         qry << "("
-        args.keys.join(qry, ", ")
+        args.keys.join(qry, ", ") do |key, io|
+          io << get_setter(key)
+        end
         qry << ") VALUES ("
-        args.values.join(qry, ", ") { |v, io| v.to_sql_insert_value(io) }
+        args.to_a.join(qry, ", ") do |(key, value), io|
+          transform_in(key, value).to_sql_insert_value(io)
+        end
         qry << ")"
       end
       begin
@@ -394,6 +398,34 @@ module Orma
       rescue err
         raise DBError.new(err, query)
       end
+    end
+
+    # :nodoc:
+    private def self.get_setter(key)
+      {% begin %}
+        case key
+        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:setter] != nil } %}
+        when {{ivar.annotation(Column)[:setter].id.symbolize}}
+          {{ivar.name.id.symbolize}}
+        {% end %}
+        else
+          key
+        end
+      {% end %}
+    end
+
+    # :nodoc:
+    private def self.transform_in(key, value)
+      {% begin %}
+        case key
+        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:transform_in] != nil } %}
+        when {{(ivar.annotation(Column)[:setter] || ivar.name).id.symbolize}}
+          {{ivar.annotation(Column)[:transform_in].id}}(value.as({{ivar.type.union_types.find { |t| t != Nil }.type_vars.first}}{{ "?".id if ivar.type.nilable? }}))
+        {% end %}
+        else
+          value
+        end
+      {% end %}
     end
 
     # :nodoc:

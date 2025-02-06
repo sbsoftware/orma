@@ -33,7 +33,7 @@ module Orma
 
         {% for ivar in @type.instance_vars %}
           {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-            %var{ivar.name} = {{transform_in}}(%var{ivar.name})
+            %var{ivar.name} = self.class.{{transform_in}}(%var{ivar.name})
           {% end %}
 
           unless %var{ivar.name}.nil?

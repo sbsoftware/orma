@@ -10,6 +10,7 @@ module Orma::CreateSpec
     column nickname : String?
     column age : Int32
     column admin : Bool = false
+    password_column password
     column created_at : Time
     column updated_at : Time
 
@@ -70,6 +71,14 @@ module Orma::CreateSpec
         record.nickname.should eq("Thirsty")
         record.age.should eq(19)
         record.admin.should be_false
+      end
+    end
+
+    it "correctly saves the password hash to the database" do
+      rec = MyRecord.create(name: "Secret", age: 1, password: "test")
+
+      [rec, MyRecord.find(rec.id)].each do |record|
+        record.verify_password("test").should be_true
       end
     end
   end
