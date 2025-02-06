@@ -11,6 +11,8 @@ module Orma::CreateSpec
     column age : Int32
     column admin : Bool = false
     password_column password
+    # can not be set via .create
+    deprecated_column legacy_info : String?
     column created_at : Time
     column updated_at : Time
 
@@ -38,6 +40,7 @@ module Orma::CreateSpec
         record.nickname.should eq("Firsty")
         record.age.should eq(21)
         record.admin.should be_true
+        record.legacy_info.should be_nil
         record.created_at.value.should be_close(Time.utc, 1.second)
         record.updated_at.value.should be_close(Time.utc, 1.second)
       end
