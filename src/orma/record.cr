@@ -314,6 +314,13 @@ module Orma
       notify_observers
     end
 
+    def update(**args : **T) forall T
+      {% for key in T.keys %}
+        self.{{key.id}} = args[{{key.symbolize}}]
+      {% end %}
+      save
+    end
+
     private def update_record
       unless _id = id.try(&.value)
         raise "Cannot update record without `id`"
