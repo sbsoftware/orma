@@ -321,6 +321,10 @@ module Orma
       save
     end
 
+    def destroy
+      db.exec("DELETE FROM #{table_name} WHERE id=#{id}")
+    end
+
     private def update_record
       unless _id = id.try(&.value)
         raise "Cannot update record without `id`"
