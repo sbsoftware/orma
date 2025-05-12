@@ -5,7 +5,7 @@ module Orma
     property value : T
 
     # :nodoc:
-    delegate :to_sql_where_condition, :to_sql_update_value, :to_sql_insert_value, to: value
+    forward_missing_to value
 
     def initialize(@model, @name, value : Attribute(T))
       @value = value.value
