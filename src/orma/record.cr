@@ -441,7 +441,7 @@ module Orma
 
     # :nodoc:
     macro column_values
-      { {{@type.instance_vars.select { |var| var.annotation(Column) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
+      { {{@type.instance_vars.select { |var| var.annotation(Column) && !var.annotation(Deprecated) }.map { |var| "#{var.name}: @#{var.name}.try(&.value)".id }.splat}} }
     end
 
     def self.continuous_migration!

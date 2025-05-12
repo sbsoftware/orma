@@ -9,6 +9,7 @@ module Orma::UpdateSpec
     column name : String
     column age : Int32
     column title : String?
+    deprecated_column hobbies : String?
     column created_at : Time
     column updated_at : Time
 
