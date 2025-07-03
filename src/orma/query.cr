@@ -1,16 +1,27 @@
-class Orma::Query(T)
-  include Indexable(T)
+abstract class Orma::Query
+  annotation WhereCondition; end
 
-  # :nodoc:
-  getter where_clause : String?
-  @collection : Array(T)?
+  abstract def load_many_from_result(res)
 
-  # :nodoc:
-  delegate :db, :table_name, to: T
+  delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, to: collection
 
-  delegate :size, :unsafe_fetch, to: collection
+  record Condition(T), name : String, value : T do
+    def to_s(io : IO)
+      io << name
+      value.to_sql_where_condition(io)
+    end
+  end
 
-  def initialize(@where_clause = nil); end
+  def initialize(**conditions : **K) forall K
+    {% for key in K.keys.map(&.id) %}
+      {% if ivar = @type.instance_vars.find { |iv| iv.annotation(WhereCondition) && iv.name.id == "#{key}_condition".id } %}
+        {% type = ivar.type.union_types.find { |t| t != Nil }.type_vars.first %}
+        @{{key}}_condition = Condition({{type}}?).new({{key.stringify}}, conditions[{{key.symbolize}}])
+      {% else %}
+        {% raise "No column: #{key}" %}
+      {% end %}
+    {% end %}
+  end
 
   def find_each(*, batch_size = 1000)
     if (total_count = count) > batch_size
@@ -26,23 +37,35 @@ class Orma::Query(T)
     end
   end
 
-  private def load_batch(batch_no, batch_size)
-    sql = "#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}"
-    begin
-      db.query(sql) do |res|
-        T.load_many_from_result(res)
-      end
-    rescue err
-      raise DBError.new(err, sql)
-    end
-  end
-
   def count
     sql = count_query
     begin
       db.scalar(sql).as(Int64)
     rescue err
       raise DBError.new(err, sql)
+    end
+  end
+
+  def to_a
+    collection.dup.to_a
+  end
+
+  private def where_clause
+    first = true
+
+    String.build do |str|
+      {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
+        if %value{ivar} = @{{ivar.name}}
+          if first
+            str << " WHERE "
+            first = false
+          else
+            str << " AND "
+          end
+
+          %value{ivar}.to_s(str)
+        end
+      {% end %}
     end
   end
 
@@ -57,23 +80,32 @@ class Orma::Query(T)
   private def build_query(select_clause)
     String.build do |str|
       str << "SELECT #{select_clause} FROM #{table_name}"
-      if where_clause
-        str << " WHERE "
-        str << where_clause
+      str << where_clause
+    end
+  end
+
+  private def load_batch(batch_no, batch_size)
+    sql = "#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}"
+    begin
+      db.query(sql) do |res|
+        load_many_from_result(res)
       end
+    rescue err
+      raise DBError.new(err, sql)
     end
   end
 
   private def collection
-    @collection ||= begin
-                      sql = find_all_query
-                      begin
-                        db.query(sql) do |res|
-                          T.load_many_from_result(res)
-                        end
-                      rescue err
-                        raise DBError.new(err, sql)
-                      end
-                    end
+    @collection ||=
+      begin
+        sql = find_all_query
+        begin
+          db.query(sql) do |res|
+            load_many_from_result(res)
+          end
+        rescue err
+          raise DBError.new(err, sql)
+        end
+      end
   end
 end

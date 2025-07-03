@@ -22,6 +22,30 @@ module Orma
     # :nodoc:
     annotation Deprecated; end
 
+    macro inherited
+      {% unless @type.abstract? %}
+        class Query < ::Orma::Query
+          PARENT = {{@type}}
+
+          delegate :db, :table_name, :load_many_from_result, to: PARENT
+
+          @collection : Array({{@type}})?
+        end
+
+        def self.all
+          Query.new
+        end
+
+        def self.where(**conditions : **T) forall T
+          Query.new(**conditions)
+        end
+
+        def self.where(conditions)
+          Query.new(conditions_string(conditions))
+        end
+      {% end %}
+    end
+
     macro id_column(type_decl)
       @[IdColumn]
       _column({{type_decl}})
@@ -67,6 +91,11 @@ module Orma
 
       def self.{{type_decl.var}}(value)
         ::Orma::Attribute({{col_type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
+      end
+
+      class Query
+        @[::Orma::Query::WhereCondition]
+        @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | ::Orma::Attribute({{type_decl.type}}))?
       end
     end
 
@@ -260,14 +289,6 @@ module Orma
       end
 
       query_one(qry)
-    end
-
-    def self.all
-      Query(self).new
-    end
-
-    def self.where(conditions)
-      Query(self).new(conditions_string(conditions))
     end
 
     # :nodoc:
