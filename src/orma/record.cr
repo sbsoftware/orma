@@ -155,7 +155,7 @@ module Orma
 
     macro has_many_of(klass)
       def {{klass.resolve.name.underscore.gsub(/::/, "_").id}}s
-        {{klass}}.where({"{{@type.name.underscore.gsub(/::/, "_").id}}_id" => id})
+        {{klass}}.where({{@type.name.underscore.gsub(/::/, "_").id}}_id: id)
       end
     end
 
