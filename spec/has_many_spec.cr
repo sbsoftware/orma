@@ -1,23 +1,12 @@
 require "./spec_helper"
 
 module HasManySpec
-  class Item < Orma::Record
-    id_column id : Int64
+  class Item < FakeRecord
     column has_many_spec_list_id : Int64
-
-    def self.db
-      FakeDB
-    end
   end
 
-  class List < Orma::Record
-    id_column id : Int64
-
+  class List < FakeRecord
     has_many_of HasManySpec::Item
-
-    def self.db
-      FakeDB
-    end
   end
 end
 

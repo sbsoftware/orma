@@ -20,3 +20,17 @@ end
 if File.exists?(TestRecord::DB_PATH)
   File.delete(TestRecord::DB_PATH)
 end
+
+abstract class FakeRecord < Orma::Record
+  macro inherited
+    id_column id : Int64
+  end
+
+  def self.db
+    FakeDB
+  end
+
+  def self.continuous_migration!
+    # noop
+  end
+end

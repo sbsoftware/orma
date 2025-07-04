@@ -1,13 +1,8 @@
 require "./spec_helper"
 require "./fake_db"
 
-class MyModel < Orma::Record
-  id_column id : Int64
+class MyModel < FakeRecord
   column name : String
-
-  def self.db
-    FakeDB
-  end
 end
 
 describe "MyModel" do

@@ -2,13 +2,8 @@ require "./spec_helper"
 require "./fake_db"
 
 module Orma::FindEachSpec
-  class MyRecord < Orma::Record
-    id_column id : Int32
+  class MyRecord < FakeRecord
     column name : String
-
-    def self.db
-      FakeDB
-    end
   end
 
   describe "MyRecord.all.find_each" do
@@ -26,13 +21,13 @@ module Orma::FindEachSpec
         it "should yield all records" do
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name}").set_result(
             [
-              {"id" => 7, "name" => "One"} of String => DB::Any,
-              {"id" => 13, "name" => "Two"} of String => DB::Any,
-              {"id" => 19, "name" => "Three"} of String => DB::Any
+              {"id" => 7_i64, "name" => "One"} of String => DB::Any,
+              {"id" => 13_i64, "name" => "Two"} of String => DB::Any,
+              {"id" => 19_i64, "name" => "Three"} of String => DB::Any
             ]
           )
 
-          ids = [] of Int32
+          ids = [] of Int64
 
           MyRecord.all.find_each do |my_record|
             if id = my_record.id.try(&.value)
@@ -40,7 +35,7 @@ module Orma::FindEachSpec
             end
           end
 
-          ids.should eq([7, 13, 19])
+          ids.should eq([7_i64, 13_i64, 19_i64])
         end
       end
 
@@ -48,17 +43,17 @@ module Orma::FindEachSpec
         it "should yield all records but load in two batches" do
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 0").set_result(
             [
-              {"id" => 7, "name" => "One"} of String => DB::Any,
-              {"id" => 13, "name" => "Two"} of String => DB::Any
+              {"id" => 7_i64, "name" => "One"} of String => DB::Any,
+              {"id" => 13_i64, "name" => "Two"} of String => DB::Any
             ]
           )
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 2").set_result(
             [
-              {"id" => 19, "name" => "Three"} of String => DB::Any
+              {"id" => 19_i64, "name" => "Three"} of String => DB::Any
             ]
           )
 
-          ids = [] of Int32
+          ids = [] of Int64
 
           MyRecord.all.find_each(batch_size: 2) do |my_record|
             if id = my_record.id.try(&.value)
@@ -66,7 +61,7 @@ module Orma::FindEachSpec
             end
           end
 
-          ids.should eq([7, 13, 19])
+          ids.should eq([7_i64, 13_i64, 19_i64])
         end
       end
     end
@@ -87,13 +82,13 @@ module Orma::FindEachSpec
         it "should yield all records" do
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test'").set_result(
             [
-              {"id" => 8, "name" => "Test"} of String => DB::Any,
-              {"id" => 14, "name" => "Test"} of String => DB::Any,
-              {"id" => 20, "name" => "Test"} of String => DB::Any
+              {"id" => 8_i64, "name" => "Test"} of String => DB::Any,
+              {"id" => 14_i64, "name" => "Test"} of String => DB::Any,
+              {"id" => 20_i64, "name" => "Test"} of String => DB::Any
             ]
           )
 
-          ids = [] of Int32
+          ids = [] of Int64
 
           MyRecord.where({"name" => "Test"}).find_each do |my_record|
             if id = my_record.id.try(&.value)
@@ -101,7 +96,7 @@ module Orma::FindEachSpec
             end
           end
 
-          ids.should eq([8, 14, 20])
+          ids.should eq([8_i64, 14_i64, 20_i64])
         end
       end
 
@@ -109,17 +104,17 @@ module Orma::FindEachSpec
         it "should yield all records but load in two batches" do
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 0").set_result(
             [
-              {"id" => 8, "name" => "Test"} of String => DB::Any,
-              {"id" => 14, "name" => "Test"} of String => DB::Any
+              {"id" => 8_i64, "name" => "Test"} of String => DB::Any,
+              {"id" => 14_i64, "name" => "Test"} of String => DB::Any
             ]
           )
           FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 2").set_result(
             [
-              {"id" => 20, "name" => "Test"} of String => DB::Any
+              {"id" => 20_i64, "name" => "Test"} of String => DB::Any
             ]
           )
 
-          ids = [] of Int32
+          ids = [] of Int64
 
           MyRecord.where({"name" => "Test"}).find_each(batch_size: 2) do |my_record|
             if id = my_record.id.try(&.value)
@@ -127,7 +122,7 @@ module Orma::FindEachSpec
             end
           end
 
-          ids.should eq([8, 14, 20])
+          ids.should eq([8_i64, 14_i64, 20_i64])
         end
       end
     end

@@ -7,14 +7,9 @@ module Orma::WhereSpec
     column age : Int32
   end
 
-  class Model2 < Orma::Record
-    id_column id : Int32
+  class Model2 < FakeRecord
     column name : String
     column age : Int32
-
-    def self.db
-      FakeDB
-    end
   end
 
   describe "Model.where" do

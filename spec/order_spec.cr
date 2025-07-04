@@ -1,13 +1,8 @@
 require "./spec_helper"
 
 module Orma::OrderSpec
-  class Model < ::Orma::Record
-    id_column id : Int64
+  class Model < FakeRecord
     column number : Int32
-
-    def self.db
-      FakeDB
-    end
   end
 
   describe "Model.all.order_by_id!" do
