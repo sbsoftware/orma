@@ -3,6 +3,7 @@ require "./spec_helper"
 module HasManySpec
   class Item < Orma::Record
     id_column id : Int64
+    column has_many_spec_list_id : Int64
 
     def self.db
       FakeDB
@@ -34,12 +35,6 @@ describe "the list class" do
       list = HasManySpec::List.new(id: 594_i64)
       FakeDB.expect("SELECT * FROM has_many_spec_items WHERE has_many_spec_list_id=594")
       list.has_many_spec_items.to_a.should eq([] of HasManySpec::Item)
-    end
-
-    it "executes the correct SQL query" do
-      list = HasManySpec::List.new(id: 594_i64)
-      FakeDB.expect("SELECT * FROM has_many_spec_items WHERE has_many_spec_list_id=594")
-      list.has_many_spec_items.to_a
     end
   end
 end
