@@ -1,5 +1,6 @@
 abstract class Orma::Query
   annotation WhereCondition; end
+  annotation OrderColumn; end
 
   abstract def load_many_from_result(res)
 
@@ -11,6 +12,25 @@ abstract class Orma::Query
       value.to_sql_where_condition(io)
     end
   end
+
+  enum Direction
+    Asc
+    Desc
+
+    def to_s(io : IO)
+      io << self.to_s.upcase
+    end
+  end
+
+  record Ordering, name : String, direction : Direction do
+    def to_s(io : IO)
+      io << name
+      io << " "
+      io << direction
+    end
+  end
+
+  getter orderings : Array(Ordering) = [] of Ordering
 
   def initialize(**conditions : **K) forall K
     where(**conditions)
@@ -101,6 +121,15 @@ abstract class Orma::Query
     end
   end
 
+  private def order_clause
+    return nil unless orderings.any?
+
+    String.build do |str|
+      str << " ORDER BY "
+      orderings.join(str, ", ")
+    end
+  end
+
   private def count_query
     build_query("COUNT(*)")
   end
@@ -113,6 +142,7 @@ abstract class Orma::Query
     String.build do |str|
       str << "SELECT #{select_clause} FROM #{table_name}"
       str << where_clause
+      str << order_clause
     end
   end
 
