@@ -23,6 +23,26 @@ abstract class Orma::Query
     {% end %}
   end
 
+  def initialize(conditions : Hash(String, K)) forall K
+    conditions.each do |key, value|
+      {% begin %}
+        case "#{key}_condition"
+        {% for ivar in @type.instance_vars.select { |iv| iv.annotation(WhereCondition) } %}
+        {% type = ivar.type.union_types.find { |t| t != Nil }.type_vars.first %}
+        when {{ivar.name.stringify}}
+          if value.is_a?({{type}})
+            @{{ivar.name.id}} = Condition({{type}}?).new(key, value)
+          else
+            raise "#{key} must be of type {{type}}, not #{typeof(value)}"
+          end
+        {% end %}
+        else
+          raise "Not a column: #{key}"
+        end
+      {% end %}
+    end
+  end
+
   def find_each(*, batch_size = 1000)
     if (total_count = count) > batch_size
       ((total_count // batch_size) + 1).times do |i|

@@ -41,7 +41,7 @@ module Orma
         end
 
         def self.where(conditions)
-          Query.new(conditions_string(conditions))
+          Query.new(conditions)
         end
       {% end %}
     end
@@ -289,17 +289,6 @@ module Orma
       end
 
       query_one(qry)
-    end
-
-    # :nodoc:
-    def self.conditions_string(conditions)
-      String.build do |str|
-        conditions.each_with_index do |(col, val), i|
-          str << col
-          val.to_sql_where_condition(str)
-          str << " AND " unless i == conditions.size - 1
-        end
-      end
     end
 
     # :nodoc:
