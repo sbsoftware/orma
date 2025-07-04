@@ -23,27 +23,27 @@ module Orma
     annotation Deprecated; end
 
     macro inherited
+      class Query < ::Orma::Query
+        PARENT = {{@type}}
+
+        delegate :db, :table_name, :load_many_from_result, to: PARENT
+
+        @collection : Array({{@type}})?
+      end
+
+      def self.all
+        Query.new
+      end
+
+      def self.where(**conditions : **T) forall T
+        Query.new(**conditions)
+      end
+
+      def self.where(conditions)
+        Query.new(conditions)
+      end
+
       {% unless @type.abstract? %}
-        class Query < ::Orma::Query
-          PARENT = {{@type}}
-
-          delegate :db, :table_name, :load_many_from_result, to: PARENT
-
-          @collection : Array({{@type}})?
-        end
-
-        def self.all
-          Query.new
-        end
-
-        def self.where(**conditions : **T) forall T
-          Query.new(**conditions)
-        end
-
-        def self.where(conditions)
-          Query.new(conditions)
-        end
-
         if ENV.fetch("ORMA_CONTINUOUS_MIGRATION", "").in?(["1", "true"])
           self.continuous_migration!
         end
@@ -97,7 +97,7 @@ module Orma
         ::Orma::Attribute({{col_type}}).new({{@type.resolve}}, {{type_decl.var.symbolize}}, value)
       end
 
-      class Query
+      class Query < ::Orma::Query
         @[::Orma::Query::WhereCondition]
         @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | ::Orma::Attribute({{type_decl.type}}))?
 
