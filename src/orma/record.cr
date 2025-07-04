@@ -43,6 +43,10 @@ module Orma
         def self.where(conditions)
           Query.new(conditions)
         end
+
+        if ENV.fetch("ORMA_CONTINUOUS_MIGRATION", "").in?(["1", "true"])
+          self.continuous_migration!
+        end
       {% end %}
     end
 
