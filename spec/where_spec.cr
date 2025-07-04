@@ -41,5 +41,11 @@ module Orma::WhereSpec
       Model2.where(name: "One").to_a
       Model2.where(name: "One", age: 33).to_a
     end
+
+    it "should be chainable" do
+      FakeDB.expect("SELECT * FROM orma_where_spec_model2s WHERE name='Two' AND age=33")
+
+      Model2.where(name: "One").where(age: 33).where(name: "Two").to_a
+    end
   end
 end

@@ -13,6 +13,14 @@ abstract class Orma::Query
   end
 
   def initialize(**conditions : **K) forall K
+    where(**conditions)
+  end
+
+  def initialize(conditions : Hash(String, K)) forall K
+    where(conditions)
+  end
+
+  def where(**conditions : **K) forall K
     {% for key in K.keys.map(&.id) %}
       {% if ivar = @type.instance_vars.find { |iv| iv.annotation(WhereCondition) && iv.name.id == "#{key}_condition".id } %}
         {% type = ivar.type.union_types.find { |t| t != Nil }.type_vars.first %}
@@ -21,9 +29,11 @@ abstract class Orma::Query
         {% raise "No column: #{key}" %}
       {% end %}
     {% end %}
+
+    self
   end
 
-  def initialize(conditions : Hash(String, K)) forall K
+  def where(conditions : Hash(String, K)) forall K
     conditions.each do |key, value|
       {% begin %}
         case "#{key}_condition"
@@ -41,6 +51,8 @@ abstract class Orma::Query
         end
       {% end %}
     end
+
+    self
   end
 
   def find_each(*, batch_size = 1000)
