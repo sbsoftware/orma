@@ -18,17 +18,14 @@ module Orma::DeprecateColumnsSpec
 
     it "should rename the name column once" do
       MyRecord.ensure_table_exists!
-      col_names = MyRecord.db.query("SELECT * FROM #{MyRecord.table_name} LIMIT 1").column_names
-      col_names.should eq(["id", "name"])
+      MyRecord.query_column_names.should eq(["id", "name"])
 
       MyRecord.deprecate_columns!
-      col_names = MyRecord.db.query("SELECT * FROM #{MyRecord.table_name} LIMIT 1").column_names
-      col_names.should eq(["id", "_name_deprecated"])
+      MyRecord.query_column_names.should eq(["id", "_name_deprecated"])
 
       # calling any continuous migration method should make no further column name changes
       MyRecord.continuous_migration!
-      col_names = MyRecord.db.query("SELECT * FROM #{MyRecord.table_name} LIMIT 1").column_names
-      col_names.should eq(["id", "_name_deprecated"])
+      MyRecord.query_column_names.should eq(["id", "_name_deprecated"])
     end
 
     it "should still query the value correctly after renaming the column" do
