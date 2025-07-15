@@ -470,6 +470,7 @@ module Orma
       ensure_columns_exist!
       ensure_unique_indexes_exist!
       deprecate_columns!
+      delete_removed_deprecated_columns!
     end
 
     def self.ensure_table_exists!
@@ -518,6 +519,18 @@ module Orma
     def self.deprecate_columns!
       column_deprecation_statements.each do |sql|
         db.exec sql
+      end
+    end
+
+    def self.delete_removed_deprecated_columns!
+      var_names = query_column_names.map { |cn| cn.lchop?("_").try(&.rchop?("_deprecated")) }.compact
+
+      var_names.each do |var_name|
+        {% begin %}
+          if !var_name.in?([{{@type.instance_vars.select(&.annotation(Column)).map(&.name.stringify).splat}}])
+            db.exec "ALTER TABLE #{table_name} DROP COLUMN _#{var_name}_deprecated"
+          end
+        {% end %}
       end
     end
 
