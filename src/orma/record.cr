@@ -466,6 +466,7 @@ module Orma
 
     def self.continuous_migration!
       ensure_table_exists!
+      restore_undeprecated_columns!
       ensure_columns_exist!
       ensure_unique_indexes_exist!
       deprecate_columns!
@@ -473,6 +474,20 @@ module Orma
 
     def self.ensure_table_exists!
       db.exec table_creation_sql
+    end
+
+    def self.restore_undeprecated_columns!
+      var_names = query_column_names.map { |cn| cn.lchop?("_").try(&.rchop?("_deprecated")) }.compact
+
+      var_names.each do |var_name|
+        {% for var in @type.instance_vars %}
+          {% if var.annotation(Column) && !var.annotation(Deprecated) %}
+            if var_name == {{var.name.stringify}}
+              db.exec "ALTER TABLE #{table_name} RENAME COLUMN _#{var_name}_deprecated TO #{var_name}"
+            end
+          {% end %}
+        {% end %}
+      end
     end
 
     def self.ensure_columns_exist!
