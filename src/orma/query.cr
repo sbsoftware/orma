@@ -4,7 +4,7 @@ abstract class Orma::Query
 
   abstract def load_many_from_result(res)
 
-  delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, to: collection
+  delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, :any?, :empty?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
 
   record Condition(T), name : String, value : T do
     def to_s(io : IO)
