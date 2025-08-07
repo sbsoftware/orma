@@ -46,7 +46,7 @@ abstract class Orma::Query
         {% type = ivar.type.union_types.find { |t| t != Nil }.type_vars.first %}
         @{{key}}_condition = Condition({{type}}?).new({{key.stringify}}, conditions[{{key.symbolize}}])
       {% else %}
-        {% raise "No column: #{key}" %}
+        {% key.raise "No column: #{key}" %}
       {% end %}
     {% end %}
 

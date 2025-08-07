@@ -186,7 +186,7 @@ module Orma
       {% for key in T.keys.map(&.id) %}
         {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key)} %}
           {% if !ivar.type.nilable? && T[key].nilable? %}
-            {% raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
+            {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
           {% end %}
 
           %attr{ivar} = args[{{key.symbolize}}]
@@ -202,7 +202,7 @@ module Orma
             {% end %}
           end
         {% else %}
-          {% raise "Not a property: #{key}" %}
+          {% @type.raise "#{key} is not a writable property of #{@type}" %}
         {% end %}
       {% end %}
     end
