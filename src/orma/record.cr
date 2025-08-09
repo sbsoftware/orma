@@ -68,7 +68,13 @@ module Orma
     macro deprecated_column(type_decl)
       @[Column]
       @[Deprecated]
+      @[::Deprecated("This column will soon be removed")]
       _column({{type_decl}})
+
+      def {{type_decl.var}}
+        {{ @caller.warning("Deprecated column getter #{@type}##{type_decl.var} will be removed in a future release.") }}
+        previous_def
+      end
     end
 
     # :nodoc:
