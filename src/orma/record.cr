@@ -474,6 +474,8 @@ module Orma
       ensure_table_exists!
       restore_undeprecated_columns!
       ensure_columns_exist!
+      ensure_default_values_applied!
+      ensure_defaulted_columns_not_null!
       ensure_unique_indexes_exist!
       deprecate_columns!
       delete_removed_deprecated_columns!
@@ -528,6 +530,27 @@ module Orma
       end
     end
 
+    def self.ensure_default_values_applied!
+      {% begin %}
+        {% defaulted = @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) && v.has_default_value? && !v.type.nilable? } %}
+        {% for var in defaulted %}
+          db.exec "UPDATE #{table_name} SET {{var.name}}=#{String.build { |io| {{var.default_value}}.to_sql_value(io) }} WHERE {{var.name}} IS NULL"
+        {% end %}
+      {% end %}
+    end
+
+    def self.ensure_defaulted_columns_not_null!
+      {% begin %}
+        {% defaulted = @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) && v.has_default_value? && !v.type.nilable? } %}
+        {% for var in defaulted %}
+          %default_sql{var} = String.build { |io| {{var.default_value}}.to_sql_value(io) }
+          if db_adapter.enforce_not_null_with_default?
+            db_adapter.enforce_not_null_with_default(table_name, {{var.name.stringify}}, %default_sql{var})
+          end
+        {% end %}
+      {% end %}
+    end
+
     def self.delete_removed_deprecated_columns!
       var_names = query_column_names.map { |cn| cn.lchop?("_").try(&.rchop?("_deprecated")) }.compact
 
@@ -577,7 +600,19 @@ module Orma
           "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Column) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})}",
+          begin
+            String.build do |io|
+              io << "{{var.name.id}} "
+              io << db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})
+              {% if var.has_default_value? %}
+                io << " DEFAULT "
+                {{var.default_value}}.to_sql_value(io)
+              {% end %}
+              {% if var.has_default_value? && !var.type.nilable? %}
+                io << " NOT NULL"
+              {% end %}
+            end
+          end,
         {% end %}
       ] of String
     end

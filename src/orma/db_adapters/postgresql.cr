@@ -32,4 +32,13 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
 
     names
   end
+
+  def enforce_not_null_with_default(table_name : String, column_name : String, default_sql : String)
+    db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET DEFAULT #{default_sql}"
+    db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET NOT NULL"
+  end
+
+  def enforce_not_null_with_default? : Bool
+    true
+  end
 end
