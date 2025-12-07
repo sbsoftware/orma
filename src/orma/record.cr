@@ -246,14 +246,18 @@ module Orma
     end
 
     def self.db
-      return @@db.not_nil! if @@db
+      if _db = @@db
+        return _db
+      end
 
       @@db = DB.open(db_connection_string)
     end
 
     # :nodoc:
     def self.db_adapter
-      return @@db_adapter.not_nil! if @@db_adapter
+      if _db_adapter = @@db_adapter
+        return _db_adapter
+      end
 
       driver_name = URI.parse(db_connection_string).scheme
       @@db_adapter = case driver_name
