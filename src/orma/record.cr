@@ -246,6 +246,10 @@ module Orma
     end
 
     def self.db
+      if conn = Fiber.current._orma_current_connection
+        return conn
+      end
+
       if _db = @@db
         return _db
       end
@@ -279,6 +283,18 @@ module Orma
     def self.notify_observers(instance)
       @@observers.each do |observer|
         observer.call(instance)
+      end
+    end
+
+    def self.transaction(&block : -> T) : T? forall T
+      previous = Fiber.current._orma_current_connection
+      db.transaction do |tx|
+        Fiber.current._orma_current_connection = tx.connection
+        begin
+          block.call
+        ensure
+          Fiber.current._orma_current_connection = previous
+        end
       end
     end
 
@@ -353,6 +369,10 @@ module Orma
 
     def destroy
       db.exec("DELETE FROM #{table_name} WHERE id=#{id}")
+    end
+
+    def transaction(&block : -> T) : T? forall T
+      self.class.transaction(&block)
     end
 
     private def update_record

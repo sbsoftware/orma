@@ -2,7 +2,7 @@ require "../../../spec/fake_db"
 
 # :nodoc:
 abstract class Orma::DbAdapters::Base
-  getter db : DB::Database | FakeDB.class
+  getter db : DB::Database | DB::Connection | FakeDB.class
 
   def initialize(@db); end
 

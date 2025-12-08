@@ -4,6 +4,12 @@ require "./expected_query"
 class FakeDB
   @@queries = [] of ExpectedQuery
 
+  class Transaction
+    def connection
+      nil
+    end
+  end
+
   def self.reset
     @@queries.clear
   end
@@ -44,6 +50,12 @@ class FakeDB
   def self.scalar(str)
     query = next_query(str)
     query.result.try(&.values).try(&.first?).try(&.values).try(&.first?) || Slice[0]
+  end
+
+  def self.transaction(&block : Transaction -> T) : T? forall T
+    block.call(Transaction.new)
+  rescue err
+    raise err
   end
 
   private def self._query(str)
