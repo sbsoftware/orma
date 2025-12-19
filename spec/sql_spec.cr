@@ -1,69 +1,93 @@
 require "./spec_helper"
-require "./fake_db"
 
-class MyModel < FakeRecord
+class MyModel < TestRecord
+  id_column id : Int64
   column name : String
 end
 
 describe "MyModel" do
-  before_each do
-    FakeDB.reset
-  end
-
   after_each do
-    FakeDB.assert_empty!
+    MyModel.db.close
   end
 
   describe ".find" do
-    it "generates the correct SQL query" do
-      FakeDB.expect("SELECT * FROM my_models WHERE id=3 LIMIT 1").set_result([{"id" => 3_i64, "name" => "Test"} of String => DB::Any])
-      model = MyModel.find(3)
+    before_each do
+      MyModel.continuous_migration!
+    end
+
+    it "returns the record by id" do
+      model = MyModel.create(name: "Test")
+
+      MyModel.find(model.id).name.should eq("Test")
     end
   end
 
   describe ".where" do
-    it "generates the correct SQL query for String values" do
-      FakeDB.expect("SELECT * FROM my_models WHERE name='Test'")
-      models = MyModel.where({"name" => "Test"}).to_a
+    before_each do
+      MyModel.continuous_migration!
+      MyModel.create(name: "Test")
+      MyModel.create(name: "Blah")
+      MyModel.create(name: "Stefanie")
     end
 
-    it "generates the correct SQL query for Int64 values" do
-      FakeDB.expect("SELECT * FROM my_models WHERE id=122")
-      models = MyModel.where({"id" => 122_i64}).to_a
+    it "filters for String values" do
+      MyModel.where({"name" => "Test"}).to_a.map(&.name.value).should eq(["Test"])
     end
 
-    it "generates the correct SQL query for mixed values" do
-      FakeDB.expect("SELECT * FROM my_models WHERE id=122 AND name='Stefanie'")
-      models = MyModel.where({"id" => 122_i64, "name" => "Stefanie"}).to_a
+    it "filters for Int64 values" do
+      model = MyModel.where({"name" => "Blah"}).first
+
+      MyModel.where({"id" => model.id.value}).to_a.should eq([model])
     end
 
-    it "generates the correct SQL query for Array values" do
-      FakeDB.expect("SELECT * FROM my_models WHERE name IN ('Test','Blah')")
+    it "filters for mixed values" do
+      model = MyModel.where({"name" => "Stefanie"}).first
+
+      MyModel.where({"id" => model.id.value, "name" => "Stefanie"}).to_a.should eq([model])
+    end
+
+    it "filters for Array values" do
       models = MyModel.where({"name" => ["Test", "Blah"]}).to_a
+
+      models.map(&.name.value).sort.should eq(["Blah", "Test"])
     end
   end
 
   describe "#save" do
     context "when the instance has an id" do
+      before_each do
+        MyModel.continuous_migration!
+      end
+
       it "generates an update statement" do
-        my_model = MyModel.new(id: 122_i64, name: "Katrina")
-        FakeDB.expect("UPDATE my_models SET name='Katrina' WHERE id=122")
+        my_model = MyModel.create(name: "Katrina")
+
+        my_model.name = "Updated"
         my_model.save
+
+        MyModel.find(my_model.id).name.should eq("Updated")
       end
     end
   end
 
   describe ".create" do
+    before_each do
+      MyModel.continuous_migration!
+    end
+
     it "generates an insert statement" do
-      FakeDB.expect("INSERT INTO my_models(name) VALUES ('Sabrina')")
-      my_model = MyModel.create(name: "Sabrina")
+      MyModel.create(name: "Sabrina")
+
+      MyModel.all.to_a.size.should eq(1)
     end
   end
 
   describe ".ensure_table_exists!" do
-    it "should execute the correct CREATE TABLE statement" do
-      FakeDB.expect("CREATE TABLE IF NOT EXISTS my_models(id BIGSERIAL PRIMARY KEY, name VARCHAR)")
+    it "creates the table if missing" do
       MyModel.ensure_table_exists!
+
+      MyModel.create(name: "Sabrina")
+      MyModel.all.to_a.size.should eq(1)
     end
   end
 end

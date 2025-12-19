@@ -1,67 +1,45 @@
 require "./spec_helper"
-require "./fake_db"
 
 module Orma::FindEachSpec
-  class MyRecord < FakeRecord
+  class MyRecord < TestRecord
+    id_column id : Int64
     column name : String
   end
 
   describe "MyRecord.all.find_each" do
     describe "with 3 records" do
       before_each do
-        FakeDB.reset
-        FakeDB.expect("SELECT COUNT(*) FROM #{MyRecord.table_name}").set_result([{"count" => 3_i64} of String => DB::Any])
+        MyRecord.continuous_migration!
+        MyRecord.create(name: "One")
+        MyRecord.create(name: "Two")
+        MyRecord.create(name: "Three")
       end
 
       after_each do
-        FakeDB.assert_empty!
+        MyRecord.db.close
       end
 
       describe "with default batch_size" do
         it "should yield all records" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name}").set_result(
-            [
-              {"id" => 7_i64, "name" => "One"} of String => DB::Any,
-              {"id" => 13_i64, "name" => "Two"} of String => DB::Any,
-              {"id" => 19_i64, "name" => "Three"} of String => DB::Any
-            ]
-          )
-
           ids = [] of Int64
 
           MyRecord.all.find_each do |my_record|
-            if id = my_record.id.try(&.value)
-              ids << id
-            end
+            ids << my_record.id.value
           end
 
-          ids.should eq([7_i64, 13_i64, 19_i64])
+          ids.sort.should eq(MyRecord.all.map(&.id.value).sort)
         end
       end
 
       describe "with batch_size = 2" do
         it "should yield all records but load in two batches" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 0").set_result(
-            [
-              {"id" => 7_i64, "name" => "One"} of String => DB::Any,
-              {"id" => 13_i64, "name" => "Two"} of String => DB::Any
-            ]
-          )
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} LIMIT 2 OFFSET 2").set_result(
-            [
-              {"id" => 19_i64, "name" => "Three"} of String => DB::Any
-            ]
-          )
-
           ids = [] of Int64
 
           MyRecord.all.find_each(batch_size: 2) do |my_record|
-            if id = my_record.id.try(&.value)
-              ids << id
-            end
+            ids << my_record.id.value
           end
 
-          ids.should eq([7_i64, 13_i64, 19_i64])
+          ids.sort.should eq(MyRecord.all.map(&.id.value).sort)
         end
       end
     end
@@ -70,59 +48,40 @@ module Orma::FindEachSpec
   describe "where scope #find_each" do
     describe "with 3 records" do
       before_each do
-        FakeDB.reset
-        FakeDB.expect("SELECT COUNT(*) FROM #{MyRecord.table_name} WHERE name='Test'").set_result([{"count" => 3_i64} of String => DB::Any])
+        MyRecord.continuous_migration!
+        MyRecord.create(name: "Test")
+        MyRecord.create(name: "Test")
+        MyRecord.create(name: "Test")
+        MyRecord.create(name: "Other")
       end
 
       after_each do
-        FakeDB.assert_empty!
+        MyRecord.db.close
       end
 
       describe "with default batch_size" do
         it "should yield all records" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test'").set_result(
-            [
-              {"id" => 8_i64, "name" => "Test"} of String => DB::Any,
-              {"id" => 14_i64, "name" => "Test"} of String => DB::Any,
-              {"id" => 20_i64, "name" => "Test"} of String => DB::Any
-            ]
-          )
-
           ids = [] of Int64
 
           MyRecord.where({"name" => "Test"}).find_each do |my_record|
-            if id = my_record.id.try(&.value)
-              ids << id
-            end
+            ids << my_record.id.value
           end
 
-          ids.should eq([8_i64, 14_i64, 20_i64])
+          ids.size.should eq(3)
+          MyRecord.where({"id" => ids}).to_a.map(&.name.value).uniq.should eq(["Test"])
         end
       end
 
       describe "with batch_size = 2" do
         it "should yield all records but load in two batches" do
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 0").set_result(
-            [
-              {"id" => 8_i64, "name" => "Test"} of String => DB::Any,
-              {"id" => 14_i64, "name" => "Test"} of String => DB::Any
-            ]
-          )
-          FakeDB.expect("SELECT * FROM #{MyRecord.table_name} WHERE name='Test' LIMIT 2 OFFSET 2").set_result(
-            [
-              {"id" => 20_i64, "name" => "Test"} of String => DB::Any
-            ]
-          )
-
           ids = [] of Int64
 
           MyRecord.where({"name" => "Test"}).find_each(batch_size: 2) do |my_record|
-            if id = my_record.id.try(&.value)
-              ids << id
-            end
+            ids << my_record.id.value
           end
 
-          ids.should eq([8_i64, 14_i64, 20_i64])
+          ids.size.should eq(3)
+          MyRecord.where({"id" => ids}).to_a.map(&.name.value).uniq.should eq(["Test"])
         end
       end
     end

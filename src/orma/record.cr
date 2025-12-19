@@ -190,7 +190,7 @@ module Orma
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
-        {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key)} %}
+        {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key) } %}
           {% if !ivar.type.nilable? && T[key].nilable? %}
             {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
           {% end %}
@@ -213,7 +213,7 @@ module Orma
       {% end %}
     end
 
-    def initialize(db_res : DB::ResultSet | FakeResult)
+    def initialize(db_res : DB::ResultSet)
       {% begin %}
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
           %value{model_col.id} = nil
@@ -308,7 +308,7 @@ module Orma
     end
 
     def self.table_name
-      {{ @type.name.underscore.gsub(/::/, "_").stringify + "s"}}
+      {{ @type.name.underscore.gsub(/::/, "_").stringify + "s" }}
     end
 
     def table_name
@@ -580,7 +580,7 @@ module Orma
 
       var_names.each do |var_name|
         {% begin %}
-          if !var_name.in?([{{@type.instance_vars.select(&.annotation(Column)).map(&.name.stringify).splat}}])
+          if !var_name.in?([{{@type.instance_vars.select(&.annotation(Column)).map(&.name.stringify).splat}}] of String)
             db.exec "ALTER TABLE #{table_name} DROP COLUMN _#{var_name}_deprecated"
           end
         {% end %}

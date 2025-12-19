@@ -8,22 +8,13 @@ module Orma::WhereSpec
     column age : Int32
   end
 
-  class Model2 < FakeRecord
-    column name : String
-    column age : Int32
-  end
-
   describe "Model.where" do
-    before_all do
+    before_each do
       Model.continuous_migration!
     end
 
-    before_each do
-      FakeDB.reset
-    end
-
     after_each do
-      FakeDB.assert_empty!
+      Model.db.close
     end
 
     it "should return the right records" do
@@ -34,18 +25,19 @@ module Orma::WhereSpec
       Model.where(name: "Two").to_a.should eq([model2])
     end
 
-    it "generate the correct SQL query" do
-      FakeDB.expect("SELECT * FROM orma_where_spec_model2s WHERE name='One'")
-      FakeDB.expect("SELECT * FROM orma_where_spec_model2s WHERE name='One' AND age=33")
+    it "supports multiple conditions" do
+      model1 = Model.create(name: "One", age: 33)
+      Model.create(name: "One", age: 10)
 
-      Model2.where(name: "One").to_a
-      Model2.where(name: "One", age: 33).to_a
+      Model.where(name: "One", age: 33).to_a.should eq([model1])
     end
 
     it "should be chainable" do
-      FakeDB.expect("SELECT * FROM orma_where_spec_model2s WHERE name='Two' AND age=33")
+      model = Model.create(name: "Two", age: 33)
+      Model.create(name: "One", age: 33)
+      Model.create(name: "Two", age: 10)
 
-      Model2.where(name: "One").where(age: 33).where(name: "Two").to_a
+      Model.where(name: "One").where(age: 33).where(name: "Two").to_a.should eq([model])
     end
   end
 end

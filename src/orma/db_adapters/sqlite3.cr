@@ -9,7 +9,7 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     getter dflt_value : String?
     getter pk : Bool
 
-    def initialize(res : DB::ResultSet | FakeResult)
+    def initialize(res : DB::ResultSet)
       res.read(Int64) # cid, unused but preserves order
       @name = res.read(String)
       @type = res.read(String)
@@ -21,12 +21,12 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
 
   def db_type_for(klass)
     case klass
-      in Int64.class then "INTEGER"
-      in Int32.class then "INTEGER"
-      in String.class then "TEXT"
-      in Bool.class then "INTEGER"
-      in Time.class then "INTEGER"
-      in Slice(UInt8).class then "BLOB"
+    in Int64.class        then "INTEGER"
+    in Int32.class        then "INTEGER"
+    in String.class       then "TEXT"
+    in Bool.class         then "INTEGER"
+    in Time.class         then "INTEGER"
+    in Slice(UInt8).class then "BLOB"
     end
   end
 

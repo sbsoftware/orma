@@ -2,10 +2,6 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::TransactionSpec
-  class FakeTxRecord < FakeRecord
-    column name : String
-  end
-
   class TxRecord < TestRecord
     id_column id : Int64
     column name : String
@@ -39,26 +35,25 @@ module Orma::TransactionSpec
 
       TxRecord.all.to_a.should be_empty
     end
-
   end
 
   describe "#transaction" do
     before_each do
-      FakeDB.reset
+      TxRecord.continuous_migration!
     end
 
     after_each do
-      FakeDB.assert_empty!
+      TxRecord.db.close
     end
 
     it "yields within the same transactional context" do
-      record = FakeTxRecord.new(id: 1_i64, name: "pre")
-
-      FakeDB.expect("UPDATE orma_transaction_spec_fake_tx_records SET name='inside' WHERE id=1")
+      record = TxRecord.create(name: "pre")
 
       record.transaction do
         record.update(name: "inside")
       end
+
+      TxRecord.find(record.id).name.should eq("inside")
     end
   end
 end

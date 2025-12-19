@@ -1,28 +1,30 @@
 require "./spec_helper"
 
 module HasManySpec
-  class Item < FakeRecord
+  class Item < TestRecord
+    id_column id : Int64
     column has_many_spec_list_id : Int64
   end
 
-  class List < FakeRecord
+  class List < TestRecord
+    id_column id : Int64
     has_many_of HasManySpec::Item
   end
 end
 
 describe "the list class" do
   before_each do
-    FakeDB.reset
+    HasManySpec::Item.continuous_migration!
+    HasManySpec::List.continuous_migration!
   end
 
   after_each do
-    FakeDB.assert_empty!
+    HasManySpec::List.db.close
   end
 
   describe "#items.to_a" do
     it "returns an empty Array for a new List" do
       list = HasManySpec::List.new(id: 594_i64)
-      FakeDB.expect("SELECT * FROM has_many_spec_items WHERE has_many_spec_list_id=594")
       list.has_many_spec_items.to_a.should eq([] of HasManySpec::Item)
     end
   end
