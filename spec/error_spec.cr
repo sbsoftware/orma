@@ -2,20 +2,12 @@ require "sqlite3"
 require "./spec_helper"
 
 module Orma::ErrorSpec
-  class Record < Orma::Record
+  class Record < TestRecord
     id_column id : Int64
     column name : String
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "when triggering DB driver exceptions" do
-    after_all do
-      File.delete("./test.db")
-    end
-
     describe "via .find" do
       it "raises an error containing the message and the query triggering it" do
         err = expect_raises(Orma::DBError) do

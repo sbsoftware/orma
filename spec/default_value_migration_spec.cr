@@ -9,40 +9,29 @@ module Orma::DefaultValueMigrationSpec
     end
   end
 
-  class Model < Orma::Record
+  class Model < TestRecord
     id_column id : Int64
     column name : String
     column admin : Bool = false
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
-  class MultiModel < Orma::Record
+  class MultiModel < TestRecord
     id_column id : Int64
     column name : String
     column admin : Bool = false
     column active : Bool = true
-
-    def self.db_connection_string
-      "sqlite3://./test_multi.db"
-    end
   end
 
-  class RollbackModel < Orma::Record
+  class RollbackModel < TestRecord
     id_column id : Int64
     column name : String
     column admin : Bool = false
-
-    def self.db_connection_string
-      "sqlite3://./test_rb.db"
-    end
   end
 
   describe "Model.continuous_migration!" do
     after_each do
       Model.db.exec("DROP TABLE IF EXISTS #{Model.table_name}")
+      Model.db.close
     end
 
     it "backfills NULLs to the default and makes the column NOT NULL" do
@@ -97,7 +86,7 @@ module Orma::DefaultValueMigrationSpec
 
   describe "multiple defaulted columns" do
     after_each do
-      File.delete("./test_multi.db") if File.exists?("./test_multi.db")
+      MultiModel.db.close
     end
 
     it "backfills and enforces NOT NULL for each defaulted non-nilable column" do
@@ -126,7 +115,7 @@ module Orma::DefaultValueMigrationSpec
 
   describe "rollback on failure" do
     after_each do
-      File.delete("./test_rb.db") if File.exists?("./test_rb.db")
+      RollbackModel.db.close
     end
 
     it "rolls back when temp column already exists" do

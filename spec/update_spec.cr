@@ -2,9 +2,7 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::UpdateSpec
-  TEST_DB_FILE = "./test.db"
-
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     column name : String
     column age : Int32
@@ -12,10 +10,6 @@ module Orma::UpdateSpec
     deprecated_column hobbies : String?
     column created_at : Time
     column updated_at : Time
-
-    def self.db_connection_string
-      "sqlite3://#{TEST_DB_FILE}"
-    end
   end
 
   describe "MyRecord#update" do
@@ -24,7 +18,6 @@ module Orma::UpdateSpec
     end
     after_each do
       MyRecord.db.close
-      File.delete(TEST_DB_FILE)
     end
 
     it "assigns the given attributes" do

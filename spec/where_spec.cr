@@ -3,6 +3,7 @@ require "sqlite3"
 
 module Orma::WhereSpec
   class Model < TestRecord
+    id_column id : Int64
     column name : String
     column age : Int32
   end
@@ -13,6 +14,10 @@ module Orma::WhereSpec
   end
 
   describe "Model.where" do
+    before_all do
+      Model.continuous_migration!
+    end
+
     before_each do
       FakeDB.reset
     end

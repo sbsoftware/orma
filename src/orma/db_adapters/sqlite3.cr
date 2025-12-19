@@ -34,6 +34,18 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     "PRIMARY KEY AUTOINCREMENT"
   end
 
+  def query_column_names(table_name : String) : Array(String)
+    names = [] of String
+
+    db.query("PRAGMA table_info(#{table_name})") do |res|
+      res.each do
+        names << ColumnInfo.new(res).name
+      end
+    end
+
+    names
+  end
+
   def query_index_names
     names = [] of String
 

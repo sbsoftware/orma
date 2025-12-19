@@ -2,18 +2,14 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::RestoreUndeprecatedColumnsSpec
-  class Model < Orma::Record
+  class Model < TestRecord
     id_column id : Int32
     column name : String
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "Model.restore_undeprecated_columns!" do
     after_each do
-      File.delete("./test.db")
+      Model.db.close
     end
 
     it "should rename the column once" do

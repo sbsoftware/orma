@@ -2,30 +2,22 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::TransactionSpec
-  DB_PATH = "./transaction_spec.db"
-
   class FakeTxRecord < FakeRecord
     column name : String
   end
 
-  class TxRecord < Orma::Record
+  class TxRecord < TestRecord
     id_column id : Int64
     column name : String
-
-    def self.db_connection_string
-      "sqlite3://#{DB_PATH}"
-    end
   end
 
   describe ".transaction" do
     before_each do
-      File.delete(DB_PATH) if File.exists?(DB_PATH)
       TxRecord.continuous_migration!
     end
 
     after_each do
       TxRecord.db.close
-      File.delete(DB_PATH) if File.exists?(DB_PATH)
     end
 
     it "commits when the block succeeds" do

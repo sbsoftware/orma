@@ -2,15 +2,11 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::TimestampsSpec
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     column name : String?
     column created_at : Time?
     column updated_at : Time?
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe MyRecord do
@@ -19,7 +15,7 @@ module Orma::TimestampsSpec
     end
 
     after_all do
-      File.delete("./test.db")
+      MyRecord.db.close
     end
 
     describe "#created_at" do

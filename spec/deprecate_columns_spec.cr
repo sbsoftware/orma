@@ -2,18 +2,14 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::DeprecateColumnsSpec
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     deprecated_column name : String
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "MyRecord.deprecate_columns!" do
     after_each do
-      File.delete("./test.db")
+      MyRecord.db.close
     end
 
     it "should rename the name column once" do

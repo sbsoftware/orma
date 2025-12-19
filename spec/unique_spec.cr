@@ -2,22 +2,14 @@ require "sqlite3"
 require "./spec_helper"
 
 module Orma::UniqueSpec
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int64
     column name : String, unique: true
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "MyRecord#save" do
     before_all do
       MyRecord.continuous_migration!
-    end
-
-    after_all do
-      File.delete("./test.db")
     end
 
     it "raises on attempted uniqueness violation" do

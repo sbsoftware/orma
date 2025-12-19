@@ -614,7 +614,7 @@ module Orma
 
     # :nodoc:
     def self.query_column_names
-      db.query("SELECT * FROM #{table_name} LIMIT 1").column_names
+      db_adapter.query_column_names(table_name)
     end
 
     # :nodoc:

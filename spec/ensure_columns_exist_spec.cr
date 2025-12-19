@@ -2,21 +2,17 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::EnsureColumnsExistSpec
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     column name : String?
     column foo : Int32
     # TODO: This column will not be created, which I think is the correct behavior but there should probably be some warning - or even an error?
     deprecated_column bar : String?
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "MyRecord.ensure_columns_exist!" do
     after_each do
-      File.delete("./test.db")
+      MyRecord.db.close
     end
 
     it "should add any missing non-deprecated column" do

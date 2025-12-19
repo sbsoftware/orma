@@ -2,15 +2,9 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::PasswordColumnSpec
-  TEST_DB_FILE = "./test.db"
-
-  class MyModel < Orma::Record
+  class MyModel < TestRecord
     id_column id : Int32
     password_column password
-
-    def self.db_connection_string
-      "sqlite3://#{TEST_DB_FILE}"
-    end
   end
 
   describe MyModel do
@@ -19,7 +13,6 @@ module Orma::PasswordColumnSpec
     end
     after_each do
       MyModel.db.close
-      File.delete(TEST_DB_FILE)
     end
 
     it "should save the password as a hash" do

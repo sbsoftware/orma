@@ -2,9 +2,7 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::CreateSpec
-  TEST_DB_FILE = "./test.db"
-
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     column name : String
     column nickname : String?
@@ -15,16 +13,11 @@ module Orma::CreateSpec
     deprecated_column legacy_info : String?
     column created_at : Time
     column updated_at : Time
-
-    def self.db_connection_string
-      "sqlite3://#{TEST_DB_FILE}"
-    end
   end
 
   describe "MyRecord.create" do
     after_each do
       MyRecord.db.close
-      File.delete(TEST_DB_FILE)
     end
     before_each do
       MyRecord.continuous_migration!

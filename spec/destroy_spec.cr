@@ -2,15 +2,9 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::DestroySpec
-  TEST_DB_FILE = "./test.db"
-
-  class MyRecord < Orma::Record
+  class MyRecord < TestRecord
     id_column id : Int32
     column name : String
-
-    def self.db_connection_string
-      "sqlite3://#{TEST_DB_FILE}"
-    end
   end
 
   describe "MyRecord#destroy" do
@@ -19,7 +13,6 @@ module Orma::DestroySpec
     end
     after_each do
       MyRecord.db.close
-      File.delete(TEST_DB_FILE)
     end
 
     it "deletes the record from the database" do

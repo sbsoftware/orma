@@ -2,7 +2,7 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::FromHttpParamsSpec
-  class MyModel < Orma::Record
+  class MyModel < TestRecord
     id_column id : Int32?
     column name : String
     column identifier : String
@@ -11,10 +11,6 @@ module Orma::FromHttpParamsSpec
     column admin : Bool = false
     column created_at : Time?
     password_column password
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe MyModel do
@@ -23,7 +19,7 @@ module Orma::FromHttpParamsSpec
     end
 
     after_all do
-      File.delete("./test.db")
+      MyModel.db.close
     end
 
     describe "MyModel.from_http_params" do

@@ -2,13 +2,9 @@ require "./spec_helper"
 require "sqlite3"
 
 module Orma::BlobColumnSpec
-  class Model < Orma::Record
+  class Model < TestRecord
     id_column id : Int64
     column data : Bytes
-
-    def self.db_connection_string
-      "sqlite3://./test.db"
-    end
   end
 
   describe "Model" do
@@ -17,7 +13,7 @@ module Orma::BlobColumnSpec
     end
 
     after_all do
-      File.delete("./test.db")
+      Model.db.close
     end
 
     it "should be able to save and load slices of bytes" do
