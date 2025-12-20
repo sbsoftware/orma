@@ -2,13 +2,6 @@ require "sqlite3"
 require "./spec_helper"
 
 module Orma::DefaultValueMigrationSpec
-  class ::Orma::DbAdapters::Sqlite3
-    # enable NOT NULL enforcement for this spec run
-    def enforce_not_null_with_default? : Bool
-      true
-    end
-  end
-
   class Model < TestRecord
     id_column id : Int64
     column name : String
@@ -118,10 +111,12 @@ module Orma::DefaultValueMigrationSpec
       RollbackModel.db.close
     end
 
-    it "rolls back when temp column already exists" do
+    it "rolls back when the scratch table name already exists" do
       RollbackModel.db.exec("DROP TABLE IF EXISTS #{RollbackModel.table_name}")
-      RollbackModel.db.exec("CREATE TABLE #{RollbackModel.table_name}(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, admin BOOLEAN, admin__orma_tmp BOOLEAN)")
-      RollbackModel.db.exec("INSERT INTO #{RollbackModel.table_name}(name, admin, admin__orma_tmp) VALUES ('Alice', NULL, 1)")
+      RollbackModel.db.exec("DROP TABLE IF EXISTS #{RollbackModel.table_name}__orma_old")
+      RollbackModel.db.exec("CREATE TABLE #{RollbackModel.table_name}(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, admin BOOLEAN)")
+      RollbackModel.db.exec("CREATE TABLE #{RollbackModel.table_name}__orma_old(dummy TEXT)")
+      RollbackModel.db.exec("INSERT INTO #{RollbackModel.table_name}(name, admin) VALUES ('Alice', NULL)")
 
       expect_raises(Exception) do
         RollbackModel.continuous_migration!

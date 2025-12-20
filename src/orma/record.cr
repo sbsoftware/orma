@@ -499,7 +499,7 @@ module Orma
       restore_undeprecated_columns!
       ensure_columns_exist!
       ensure_default_values_applied!
-      ensure_defaulted_columns_not_null!
+      ensure_column_constraints!
       ensure_unique_indexes_exist!
       deprecate_columns!
       delete_removed_deprecated_columns!
@@ -563,16 +563,16 @@ module Orma
       {% end %}
     end
 
-    def self.ensure_defaulted_columns_not_null!
-      {% begin %}
-        {% defaulted = @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) && v.has_default_value? && !v.type.nilable? } %}
-        {% for var in defaulted %}
-          %default_sql{var} = String.build { |io| {{var.default_value}}.to_sql_value(io) }
-          if db_adapter.enforce_not_null_with_default?
-            db_adapter.enforce_not_null_with_default(table_name, {{var.name.stringify}}, %default_sql{var})
-          end
-        {% end %}
+    def self.ensure_column_constraints!
+      constraints = {} of String => Orma::DbAdapters::DesiredColumnConstraints
+
+      {% for var in @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) } %}
+        default_sql = {% if var.has_default_value? %}String.build { |io| {{var.default_value}}.to_sql_value(io) }{% else %}nil{% end %}
+        not_null = {% if var.type.nilable? %}false{% elsif var.has_default_value? && !var.type.nilable? %}true{% else %}nil{% end %}
+        constraints[{{var.name.stringify}}] = Orma::DbAdapters::DesiredColumnConstraints.new(default_sql, not_null)
       {% end %}
+
+      db_adapter.sync_column_constraints(table_name, constraints)
     end
 
     def self.delete_removed_deprecated_columns!

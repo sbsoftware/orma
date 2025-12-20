@@ -4,11 +4,11 @@ require "./base"
 class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
   def db_type_for(klass)
     case klass
-    in Int64.class then "BIGSERIAL"
-    in Int32.class then "SERIAL"
-    in String.class then "VARCHAR"
-    in Bool.class then "BOOLEAN"
-    in Time.class then "TIMESTAMP"
+    in Int64.class        then "BIGSERIAL"
+    in Int32.class        then "SERIAL"
+    in String.class       then "VARCHAR"
+    in Bool.class         then "BOOLEAN"
+    in Time.class         then "TIMESTAMP"
     in Slice(UInt8).class then "BLOB"
     end
   end
@@ -33,12 +33,20 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     names
   end
 
-  def enforce_not_null_with_default(table_name : String, column_name : String, default_sql : String)
-    db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET DEFAULT #{default_sql}"
-    db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET NOT NULL"
-  end
+  def sync_column_constraints(table_name : String, constraints : Hash(String, Orma::DbAdapters::DesiredColumnConstraints))
+    constraints.each do |column_name, desired|
+      if desired.default_sql
+        db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET DEFAULT #{desired.default_sql}"
+      else
+        db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} DROP DEFAULT"
+      end
 
-  def enforce_not_null_with_default? : Bool
-    true
+      case desired.not_null
+      when true
+        db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} SET NOT NULL"
+      when false
+        db.exec "ALTER TABLE #{table_name} ALTER COLUMN #{column_name} DROP NOT NULL"
+      end
+    end
   end
 end

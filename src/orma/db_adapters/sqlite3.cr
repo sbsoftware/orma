@@ -35,15 +35,7 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
   end
 
   def query_column_names(table_name : String) : Array(String)
-    names = [] of String
-
-    db.query("PRAGMA table_info(#{table_name})") do |res|
-      res.each do
-        names << ColumnInfo.new(res).name
-      end
-    end
-
-    names
+    sqlite_column_infos(table_name).map(&.name)
   end
 
   def query_index_names
@@ -62,35 +54,112 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     names
   end
 
-  def enforce_not_null_with_default(table_name : String, column_name : String, default_sql : String)
-    info = sqlite_column_info(table_name, column_name)
-    return unless info
-    return if info.notnull
+  def sync_column_constraints(table_name : String, constraints : Hash(String, Orma::DbAdapters::DesiredColumnConstraints))
+    infos = sqlite_column_infos(table_name)
+    return if infos.empty?
 
-    tmp_column = "#{column_name}__orma_tmp"
+    needs_rebuild = infos.any? do |info|
+      desired = constraints[info.name]?
+      next false unless desired
 
+      desired_default = desired.default_sql
+      desired_not_null = desired.not_null.nil? ? info.notnull : desired.not_null.not_nil!
+
+      info.dflt_value != desired_default || info.notnull != desired_not_null
+    end
+    return unless needs_rebuild
+
+    index_sqls = sqlite_object_sqls("index", table_name)
+    trigger_sqls = sqlite_object_sqls("trigger", table_name)
+
+    old_table = "#{table_name}__orma_old"
     db.exec "BEGIN"
-    db.exec "ALTER TABLE #{table_name} ADD COLUMN #{tmp_column} #{info.type} NOT NULL DEFAULT #{default_sql}"
-    db.exec "UPDATE #{table_name} SET #{tmp_column} = #{column_name}"
-    db.exec "ALTER TABLE #{table_name} DROP COLUMN #{column_name}"
-    db.exec "ALTER TABLE #{table_name} RENAME COLUMN #{tmp_column} TO #{column_name}"
+    db.exec "ALTER TABLE #{table_name} RENAME TO #{old_table}"
+    db.exec "CREATE TABLE #{table_name}(#{sqlite_column_definitions(infos, constraints)})"
+    db.exec "INSERT INTO #{table_name}(#{infos.map(&.name).join(", ")}) SELECT #{infos.map(&.name).join(", ")} FROM #{old_table}"
+    db.exec "DROP TABLE #{old_table}"
+    index_sqls.each { |sql| db.exec sql }
+    trigger_sqls.each { |sql| db.exec sql }
+    sqlite_fix_sequence(table_name, infos)
     db.exec "COMMIT"
   rescue err
     db.exec "ROLLBACK" rescue nil
     raise err
   end
 
-  def enforce_not_null_with_default? : Bool
-    false
-  end
-
-  private def sqlite_column_info(table_name, column_name)
+  private def sqlite_column_infos(table_name : String) : Array(ColumnInfo)
+    infos = [] of ColumnInfo
     db.query("PRAGMA table_info(#{table_name})") do |res|
       res.each do
-        info = ColumnInfo.new(res)
-        return info if info.name == column_name
+        infos << ColumnInfo.new(res)
       end
     end
-    nil
+    infos
+  end
+
+  private def sqlite_object_sqls(type : String, table_name : String) : Array(String)
+    sqls = [] of String
+
+    db.query("SELECT sql FROM sqlite_master WHERE type='#{type}' AND tbl_name='#{table_name}' AND sql IS NOT NULL") do |res|
+      res.each do
+        sqls << res.read(String)
+      end
+    end
+
+    sqls
+  end
+
+  private def sqlite_column_definitions(
+    infos : Array(ColumnInfo),
+    constraints : Hash(String, Orma::DbAdapters::DesiredColumnConstraints),
+  ) : String
+    pk_count = infos.count(&.pk)
+    raise "Composite primary keys are not supported" if pk_count > 1
+
+    String.build do |io|
+      infos.each_with_index do |info, idx|
+        io << ", " if idx > 0
+
+        io << info.name
+        io << " "
+        io << info.type
+
+        if info.pk
+          io << " "
+          if info.type.upcase == "INTEGER"
+            io << "PRIMARY KEY AUTOINCREMENT"
+          else
+            io << "PRIMARY KEY"
+          end
+          next
+        end
+
+        desired = constraints[info.name]?
+        column_default_sql = desired ? desired.default_sql : info.dflt_value
+        column_not_null = if desired && !desired.not_null.nil?
+                            desired.not_null.not_nil!
+                          else
+                            info.notnull
+                          end
+
+        if column_default_sql
+          io << " DEFAULT "
+          io << column_default_sql
+        end
+        if column_not_null
+          io << " NOT NULL"
+        end
+      end
+    end
+  end
+
+  private def sqlite_fix_sequence(table_name : String, infos : Array(ColumnInfo))
+    pk = infos.find(&.pk)
+    return unless pk
+    return unless pk.type.upcase == "INTEGER"
+
+    db.exec "INSERT OR REPLACE INTO sqlite_sequence(name, seq) VALUES ('#{table_name}', (SELECT COALESCE(MAX(#{pk.name}), 0) FROM #{table_name}))"
+  rescue
+    # sqlite_sequence might not exist (no AUTOINCREMENT tables yet) and that's fine
   end
 end
