@@ -558,7 +558,7 @@ module Orma
       {% begin %}
         {% defaulted = @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) && v.has_default_value? && !v.type.nilable? } %}
         {% for var in defaulted %}
-          db.exec "UPDATE #{table_name} SET {{var.name}}=#{String.build { |io| {{var.default_value}}.to_sql_value(io) }} WHERE {{var.name}} IS NULL"
+          db.exec "UPDATE #{table_name} SET {{var.name}}=#{ {{var.default_value}}.to_sql_value } WHERE {{var.name}} IS NULL"
         {% end %}
       {% end %}
     end
@@ -567,7 +567,7 @@ module Orma
       constraints = {} of String => Orma::DbAdapters::DesiredColumnConstraints
 
       {% for var in @type.instance_vars.select { |v| v.annotation(Column) && !v.annotation(Deprecated) } %}
-        default_sql = {% if var.has_default_value? %}String.build { |io| {{var.default_value}}.to_sql_value(io) }{% else %}nil{% end %}
+        default_sql = {% if var.has_default_value? %}{{var.default_value}}.to_sql_value{% else %}nil{% end %}
         not_null = {% if var.type.nilable? %}false{% elsif var.has_default_value? && !var.type.nilable? %}true{% else %}nil{% end %}
         constraints[{{var.name.stringify}}] = Orma::DbAdapters::DesiredColumnConstraints.new(default_sql, not_null)
       {% end %}

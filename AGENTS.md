@@ -34,6 +34,10 @@
 
 - If you create local cache folders for builds/tests (e.g. `.crystal-cache/` via `CRYSTAL_CACHE_DIR`), remove them after usage and do not commit them.
 
+## IO vs String Helpers
+
+- Prefer IO-based variants of methods when an `IO` is already available; use String-returning overloads only when you would otherwise need an inline `String.build`.
+
 ## Security, Configuration & Instrumentation
 
 - `ORMA_CONTINUOUS_MIGRATION=1|true` enables continuous migrations for non-abstract records.
