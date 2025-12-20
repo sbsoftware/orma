@@ -30,6 +30,10 @@
 - Naming: put new coverage in `spec/<feature>_spec.cr`.
 - Prefer the in-memory SQLite setup from `spec/spec_helper.cr`; avoid filesystem-backed DBs in tests.
 
+## Local Caches
+
+- If you create local cache folders for builds/tests (e.g. `.crystal-cache/` via `CRYSTAL_CACHE_DIR`), remove them after usage and do not commit them.
+
 ## Security, Configuration & Instrumentation
 
 - `ORMA_CONTINUOUS_MIGRATION=1|true` enables continuous migrations for non-abstract records.
