@@ -286,15 +286,14 @@ module Orma
       end
     end
 
-    def self.transaction(&block : -> T) : T? forall T
-      previous = Fiber.current._orma_current_connection
-      db.transaction do |tx|
-        Fiber.current._orma_current_connection = tx.connection
-        begin
-          block.call
-        ensure
-          Fiber.current._orma_current_connection = previous
-        end
+    def self.transaction(&block : -> T) : T forall T
+      db_connection = db
+      if db_connection.is_a?(DB::Connection)
+        return transaction_on_connection(db_connection, &block)
+      end
+
+      db_connection.using_connection do |conn|
+        transaction_on_connection(conn, &block)
       end
     end
 
@@ -371,8 +370,32 @@ module Orma
       db.exec("DELETE FROM #{table_name} WHERE id=#{id}")
     end
 
-    def transaction(&block : -> T) : T? forall T
+    def transaction(&block : -> T) : T forall T
       self.class.transaction(&block)
+    end
+
+    private def self.transaction_on_connection(connection : DB::Connection, &block : -> T) : T forall T
+      previous = Fiber.current._orma_current_connection
+      rollback = false
+      tx = connection.begin_transaction
+      Fiber.current._orma_current_connection = tx.connection
+      begin
+        return block.call
+      rescue e
+        # Orma always re-raises (including DB::Rollback) to keep transaction return type non-nilable.
+        # This intentionally deviates from crystal-db's DB::BeginTransaction behavior which swallows DB::Rollback.
+        rollback = true
+        raise e
+      ensure
+        Fiber.current._orma_current_connection = previous
+        unless tx.closed?
+          if rollback
+            tx.rollback
+          else
+            tx.commit
+          end
+        end
+      end
     end
 
     private def update_record

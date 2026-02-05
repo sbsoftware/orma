@@ -35,6 +35,12 @@ module Orma::TransactionSpec
 
       TxRecord.all.to_a.should be_empty
     end
+
+    it "returns the block value without a nilable type" do
+      value = TxRecord.transaction { 1 }
+
+      (value + 1).should eq(2)
+    end
   end
 
   describe "#transaction" do
@@ -54,6 +60,14 @@ module Orma::TransactionSpec
       end
 
       TxRecord.find(record.id).name.should eq("inside")
+    end
+
+    it "returns the block value without a nilable type" do
+      record = TxRecord.create(name: "pre")
+
+      value = record.transaction { 1 }
+
+      (value + 1).should eq(2)
     end
   end
 end
