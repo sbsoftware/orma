@@ -326,6 +326,10 @@ module Orma
       query_one(qry)
     end
 
+    def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
+      where(id: id).first?
+    end
+
     # :nodoc:
     def self.query_one(sql)
       db.query_one(sql) do |res|

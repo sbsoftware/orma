@@ -7,7 +7,7 @@ module Orma::FindSpec
     column name : String
   end
 
-  describe "Record.find" do
+  describe "Record.find / find?" do
     before_all do
       Record.continuous_migration!
       Record.create(name: "Test")
@@ -17,35 +17,68 @@ module Orma::FindSpec
       Record.db.close
     end
 
-    context "with an existing Int value" do
-      it "returns the record" do
-        rec = Record.find(1)
-        rec.should be_a(Record)
-        rec.id.should eq(1_i64)
+    describe "Record.find" do
+      context "with an existing Int value" do
+        it "returns the record" do
+          rec = Record.find(1)
+          rec.should be_a(Record)
+          rec.id.should eq(1_i64)
+        end
       end
-    end
 
-    context "with a nonexisting INT value" do
-      it "raises" do
-        expect_raises(Orma::DBError) do
-          Record.find(10)
+      context "with a nonexisting INT value" do
+        it "raises" do
+          expect_raises(Orma::DBError) do
+            Record.find(10)
+          end
+        end
+      end
+
+      context "with an existing attribute value" do
+        it "returns a new instance of the record" do
+          rec1 = Record.find(1)
+          rec2 = Record.find(rec1.id)
+
+          rec2.should eq(rec1)
+        end
+      end
+
+      context "with a nil value" do
+        it "raises" do
+          expect_raises(Orma::DBError) do
+            Record.find(nil)
+          end
         end
       end
     end
 
-    context "with an existing attribute value" do
-      it "returns a new instance of the record" do
-        rec1 = Record.find(1)
-        rec2 = Record.find(rec1.id)
-
-        rec2.should eq(rec1)
+    describe "Record.find?" do
+      context "with an existing Int value" do
+        it "returns the record" do
+          rec = Record.find?(1)
+          rec.should be_a(Record)
+          rec.not_nil!.id.should eq(1_i64)
+        end
       end
-    end
 
-    context "with a nil value" do
-      it "raises" do
-        expect_raises(Orma::DBError) do
-          Record.find(nil)
+      context "with a nonexisting INT value" do
+        it "returns nil" do
+          Record.find?(10).should be_nil
+        end
+      end
+
+      context "with an existing attribute value" do
+        it "returns a new instance of the record" do
+          rec1 = Record.find(1)
+          rec2 = Record.find?(rec1.id)
+
+          rec2.not_nil!.should eq(rec1)
+        end
+      end
+
+      context "with a nil value" do
+        it "returns nil" do
+          Record.find?(nil).should be_nil
         end
       end
     end
