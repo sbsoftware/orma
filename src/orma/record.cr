@@ -51,6 +51,12 @@ module Orma
     end
 
     macro id_column(type_decl)
+      # :nodoc:
+      {% if type_decl.type.resolve.nilable? %}
+        ID_VALUE_TYPE = {{type_decl.type.resolve.union_types.find { |t| t != Nil }}}
+      {% else %}
+        ID_VALUE_TYPE = {{type_decl.type}}
+      {% end %}
       @[IdColumn]
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -173,6 +179,37 @@ module Orma
       def {{klass.resolve.name.underscore.gsub(/::/, "_").id}}s
         {{klass}}.where({{@type.name.underscore.gsub(/::/, "_").id}}_id: id)
       end
+    end
+
+    # Defines a one-to-one association to another record.
+    #
+    # Example:
+    #   belongs_to Comment
+    #   # => adds `comment_id` column + `#comment` accessor
+    macro belongs_to(klass, required = true)
+      {% assoc_name = klass.resolve.name.underscore.gsub(/::/, "_") %}
+      {% fk_name = "#{assoc_name}_id" %}
+
+      {% id_type = klass.resolve.constant("ID_VALUE_TYPE") %}
+      {% unless id_type %}
+        {% raise "No `id_column` found on #{klass} for belongs_to association on #{@type} (expected #{klass}::ID_VALUE_TYPE)" %}
+      {% end %}
+
+      {% if required == false %}
+        column {{fk_name.id}} : {{id_type}}?
+
+        def {{assoc_name.id}} : {{klass}}?
+          if _id = {{fk_name.id}}.try(&.value)
+            {{klass}}.find(_id)
+          end
+        end
+      {% else %}
+        column {{fk_name.id}} : {{id_type}}
+
+        def {{assoc_name.id}} : {{klass}}
+          {{klass}}.find({{fk_name.id}}.value)
+        end
+      {% end %}
     end
 
     def self.create(**args : **T) : self forall T
