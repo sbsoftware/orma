@@ -270,8 +270,12 @@ module Orma
           unless %value{model_col.id}.nil?
             @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
           else
-            {% unless model_col.type.nilable? || model_col.has_default_value? %}
-              raise "nil value encountered for `@{{model_col}}`"
+            {% if model_col.type.nilable? %}
+              @{{model_col.name}} = nil
+            {% else %}
+              {% unless model_col.has_default_value? %}
+                raise "nil value encountered for `@{{model_col}}`"
+              {% end %}
             {% end %}
           end
         {% end %}
@@ -367,6 +371,29 @@ module Orma
       where(id: id).first?
     end
 
+    def reload
+      unless _id = id.try(&.value)
+        raise "Cannot reload record without `id`"
+      end
+
+      sql = String.build do |qry|
+        qry << "SELECT * FROM "
+        qry << table_name
+        qry << " WHERE id="
+        qry << _id
+        qry << " LIMIT 1"
+      end
+      begin
+        db.query_one(sql) do |res|
+          load_attributes_from_result_set(res)
+        end
+      rescue err
+        raise DBError.new(err, sql)
+      end
+
+      self
+    end
+
     # :nodoc:
     def self.query_one(sql)
       db.query_one(sql) do |res|
@@ -413,6 +440,38 @@ module Orma
 
     def transaction(&block : -> T) : T forall T
       self.class.transaction(&block)
+    end
+
+    private def load_attributes_from_result_set(db_res : DB::ResultSet)
+      {% begin %}
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+          %value{model_col.id} = nil
+        {% end %}
+
+        db_res.each_column do |column|
+          case column
+            {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+              when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
+                {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
+                {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
+                %value{model_col.id} = db_res.read({{read_type}})
+            {% end %}
+          end
+        end
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+          unless %value{model_col.id}.nil?
+            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
+          else
+            {% if model_col.type.nilable? %}
+              @{{model_col.name}} = nil
+            {% else %}
+              {% unless model_col.has_default_value? %}
+                raise "nil value encountered for `@{{model_col}}`"
+              {% end %}
+            {% end %}
+          end
+        {% end %}
+      {% end %}
     end
 
     private def self.transaction_on_connection(connection : DB::Connection, &block : -> T) : T forall T
