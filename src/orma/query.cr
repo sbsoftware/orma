@@ -31,6 +31,7 @@ abstract class Orma::Query
   end
 
   getter orderings : Array(Ordering) = [] of Ordering
+  @limit : Int64?
 
   def initialize(**conditions : **K) forall K
     where(**conditions)
@@ -75,7 +76,17 @@ abstract class Orma::Query
     self
   end
 
-  def find_each(*, batch_size = 1000)
+  def limit(limit : Int)
+    @limit = limit.to_i64
+    self
+  end
+
+  def limit(_limit : Nil)
+    @limit = nil
+    self
+  end
+
+  def find_each(*, batch_size = 1000, &)
     if (total_count = count) > batch_size
       ((total_count // batch_size) + 1).times do |i|
         load_batch(i, batch_size).each do |item|
@@ -131,23 +142,32 @@ abstract class Orma::Query
   end
 
   private def count_query
-    build_query("COUNT(*)")
+    build_query("COUNT(*)", include_limit: false)
   end
 
   private def find_all_query
     build_query("*")
   end
 
-  private def build_query(select_clause)
+  private def build_query(select_clause, *, include_limit = true)
     String.build do |str|
       str << "SELECT #{select_clause} FROM #{table_name}"
       str << where_clause
       str << order_clause
+      if include_limit
+        str << limit_clause
+      end
     end
   end
 
+  private def limit_clause
+    return nil unless limit = @limit
+
+    " LIMIT #{limit}"
+  end
+
   private def load_batch(batch_no, batch_size)
-    sql = "#{find_all_query} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}"
+    sql = "#{build_query("*", include_limit: false)} LIMIT #{batch_size} OFFSET #{batch_no * batch_size}"
     begin
       db.query(sql) do |res|
         load_many_from_result(res)
