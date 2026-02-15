@@ -250,6 +250,8 @@ module Orma
       {% end %}
     end
 
+    # This stays inlined because Crystal requires ivars to be initialized directly in `initialize`.
+    # `#reload` uses `load_attributes_from_result_set` below, which mirrors this loading behavior.
     def initialize(db_res : DB::ResultSet)
       {% begin %}
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
@@ -267,17 +269,16 @@ module Orma
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
-          if !%value{model_col.id}.nil?
-            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
-          else
+          if %value{model_col.id}.nil?
             {% if model_col.type.nilable? %}
-              # Keep model state aligned with DB NULL values instead of retaining stale attributes.
               @{{model_col.name}} = nil
             {% else %}
-              {% if !model_col.has_default_value? %}
+              {% unless model_col.has_default_value? %}
                 raise "nil value encountered for `@{{model_col}}`"
               {% end %}
             {% end %}
+          else
+            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
           end
         {% end %}
       {% end %}
@@ -461,17 +462,17 @@ module Orma
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
-          if !%value{model_col.id}.nil?
-            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
-          else
+          if %value{model_col.id}.nil?
             {% if model_col.type.nilable? %}
               # Keep model state aligned with DB NULL values instead of retaining stale attributes.
               @{{model_col.name}} = nil
             {% else %}
-              {% if !model_col.has_default_value? %}
+              {% unless model_col.has_default_value? %}
                 raise "nil value encountered for `@{{model_col}}`"
               {% end %}
             {% end %}
+          else
+            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
           end
         {% end %}
       {% end %}
