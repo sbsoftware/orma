@@ -352,15 +352,7 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      qry = String.build do |str|
-        str << "SELECT * FROM "
-        str << table_name
-        str << " WHERE id"
-        id.to_sql_where_condition(str)
-        str << " LIMIT 1"
-      end
-
-      query_one(qry)
+      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", to_db_any(id))
     end
 
     def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
@@ -372,15 +364,10 @@ module Orma
         raise "Cannot reload record without `id`"
       end
 
-      sql = String.build do |qry|
-        qry << "SELECT * FROM "
-        qry << table_name
-        qry << " WHERE id="
-        qry << _id
-        qry << " LIMIT 1"
-      end
+      sql = "SELECT * FROM #{table_name} WHERE id=? LIMIT 1"
+      args = [_id] of DB::Any
       begin
-        db.query_one(sql) do |res|
+        db.query_one(sql, args: args) do |res|
           load_attributes_from_result_set(res)
         end
       rescue err
@@ -391,8 +378,8 @@ module Orma
     end
 
     # :nodoc:
-    def self.query_one(sql)
-      db.query_one(sql) do |res|
+    def self.query_one(sql, *args_, args : Enumerable? = nil)
+      db.query_one(sql, *args_, args: args) do |res|
         new(res)
       end
     rescue err
@@ -431,7 +418,12 @@ module Orma
     end
 
     def destroy
-      db.exec("DELETE FROM #{table_name} WHERE id=#{id}")
+      unless _id = id.try(&.value)
+        raise "Cannot destroy record without `id`"
+      end
+
+      sql = "DELETE FROM #{table_name} WHERE id=?"
+      db.exec(sql, _id)
     end
 
     def transaction(&block : -> T) : T forall T
@@ -505,19 +497,21 @@ module Orma
         self.updated_at = Time.utc
       {% end %}
 
+      args = [] of DB::Any
       query = String.build do |qry|
         qry << "UPDATE "
         qry << table_name
         qry << " SET "
         column_values.to_h.join(qry, ", ") do |(k, v), io|
           io << k
-          v.to_sql_update_value(io)
+          io << "=?"
+          args << to_db_any(v)
         end
-        qry << " WHERE id="
-        qry << _id
+        qry << " WHERE id=?"
       end
+      args << _id
       begin
-        db.exec query
+        db.exec(query, args: args)
       rescue err
         raise DBError.new(err, query)
       end
@@ -531,17 +525,21 @@ module Orma
         self.updated_at ||= Time.utc
       {% end %}
 
+      args = [] of DB::Any
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
         qry << "("
         column_values.keys.join(qry, ", ")
         qry << ") VALUES ("
-        column_values.values.join(qry, ", ") { |v, io| v.to_sql_insert_value(io) }
+        column_values.values.join(qry, ", ") do |v, io|
+          io << "?"
+          args << to_db_any(v)
+        end
         qry << ")"
       end
       begin
-        db.exec query
+        db.exec(query, args: args)
       rescue err
         raise DBError.new(err, query)
       end
@@ -555,6 +553,7 @@ module Orma
         {% end %}
       {% end %}
 
+      args_values = [] of DB::Any
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
@@ -564,12 +563,13 @@ module Orma
         end
         qry << ") VALUES ("
         args.to_a.join(qry, ", ") do |(key, value), io|
-          transform_in(key, value).to_sql_insert_value(io)
+          io << "?"
+          args_values << to_db_any(transform_in(key, value))
         end
         qry << ")"
       end
       begin
-        res = db.exec(query)
+        res = db.exec(query, args: args_values)
 
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
@@ -580,6 +580,38 @@ module Orma
       rescue err
         raise DBError.new(err, query)
       end
+    end
+
+    private def to_db_any(value : Orma::Attribute)
+      to_db_any(value.value)
+    end
+
+    private def to_db_any(value : DB::Any) : DB::Any
+      value
+    end
+
+    private def to_db_any(value : Int) : DB::Any
+      value.to_i64
+    end
+
+    private def to_db_any(value) : DB::Any
+      value.as(DB::Any)
+    end
+
+    private def self.to_db_any(value : Orma::Attribute)
+      to_db_any(value.value)
+    end
+
+    private def self.to_db_any(value : DB::Any) : DB::Any
+      value
+    end
+
+    private def self.to_db_any(value : Int) : DB::Any
+      value.to_i64
+    end
+
+    private def self.to_db_any(value) : DB::Any
+      value.as(DB::Any)
     end
 
     # :nodoc:
