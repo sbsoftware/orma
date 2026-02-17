@@ -352,7 +352,7 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", to_db_any(id))
+      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", id.try(&.to_i64))
     end
 
     def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
@@ -505,7 +505,7 @@ module Orma
         column_values.to_h.join(qry, ", ") do |(k, v), io|
           io << k
           io << "=?"
-          args << to_db_any(v)
+          args << v.to_db_param
         end
         qry << " WHERE id=?"
       end
@@ -534,7 +534,7 @@ module Orma
         qry << ") VALUES ("
         column_values.values.join(qry, ", ") do |v, io|
           io << "?"
-          args << to_db_any(v)
+          args << v.to_db_param
         end
         qry << ")"
       end
@@ -564,7 +564,7 @@ module Orma
         qry << ") VALUES ("
         args.to_a.join(qry, ", ") do |(key, value), io|
           io << "?"
-          args_values << to_db_any(transform_in(key, value))
+          args_values << transform_in(key, value).to_db_param
         end
         qry << ")"
       end
@@ -580,38 +580,6 @@ module Orma
       rescue err
         raise DBError.new(err, query)
       end
-    end
-
-    private def to_db_any(value : Orma::Attribute)
-      to_db_any(value.value)
-    end
-
-    private def to_db_any(value : DB::Any) : DB::Any
-      value
-    end
-
-    private def to_db_any(value : Int) : DB::Any
-      value.to_i64
-    end
-
-    private def to_db_any(value) : DB::Any
-      value.as(DB::Any)
-    end
-
-    private def self.to_db_any(value : Orma::Attribute)
-      to_db_any(value.value)
-    end
-
-    private def self.to_db_any(value : DB::Any) : DB::Any
-      value
-    end
-
-    private def self.to_db_any(value : Int) : DB::Any
-      value.to_i64
-    end
-
-    private def self.to_db_any(value) : DB::Any
-      value.as(DB::Any)
     end
 
     # :nodoc:

@@ -15,4 +15,15 @@ class Array(T)
   def sql_eq_operator(io)
     io << " IN "
   end
+
+  def to_prepared_where_condition(io : IO, args : Array(DB::Any))
+    sql_eq_operator(io)
+    io << "("
+    each_with_index do |item, index|
+      io << ", " if index > 0
+      io << "?"
+      args << item.to_db_param
+    end
+    io << ")"
+  end
 end

@@ -1,6 +1,18 @@
+require "db"
+
 module Orma
   # :nodoc:
   module ToSql
+    def to_prepared_where_condition(io : IO, args : Array(DB::Any))
+      sql_eq_operator(io)
+      io << "?"
+      args << to_db_param
+    end
+
+    def to_db_param : DB::Any
+      self.as(DB::Any)
+    end
+
     def to_sql_where_condition(io : IO)
       sql_eq_operator(io)
       to_sql_value(io)

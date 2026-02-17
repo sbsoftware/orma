@@ -124,45 +124,10 @@ abstract class Orma::Query
           end
 
           str << %value{ivar}.name
-          append_condition_value(str, args, %value{ivar}.value)
+          %value{ivar}.value.to_prepared_where_condition(str, args)
         end
       {% end %}
     end
-  end
-
-  private def append_condition_value(io : IO, args : Array(DB::Any), value : Nil)
-    io << " IS NULL"
-  end
-
-  private def append_condition_value(io : IO, args : Array(DB::Any), value : Array)
-    io << " IN ("
-    value.each_with_index do |item, index|
-      io << ", " if index > 0
-      io << "?"
-      args << to_db_any(item)
-    end
-    io << ")"
-  end
-
-  private def append_condition_value(io : IO, args : Array(DB::Any), value : Orma::Attribute)
-    append_condition_value(io, args, value.value)
-  end
-
-  private def append_condition_value(io : IO, args : Array(DB::Any), value)
-    io << "=?"
-    args << to_db_any(value)
-  end
-
-  private def to_db_any(value : DB::Any) : DB::Any
-    value
-  end
-
-  private def to_db_any(value : Int) : DB::Any
-    value.to_i64
-  end
-
-  private def to_db_any(value) : DB::Any
-    value.as(DB::Any)
   end
 
   private def order_clause
