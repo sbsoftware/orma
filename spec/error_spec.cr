@@ -32,7 +32,7 @@ module Orma::ErrorSpec
           Record.where({"id" => [1_i64, 2_i64]}).to_a
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE id IN (?, ?)")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE id IN (?,?)")
       end
     end
 
