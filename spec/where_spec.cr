@@ -39,5 +39,13 @@ module Orma::WhereSpec
 
       Model.where(name: "One").where(age: 33).where(name: "Two").to_a.should eq([model])
     end
+
+    it "handles SQL-like user input as plain values" do
+      injected = "One' OR 1=1 --"
+      model = Model.create(name: injected, age: 20)
+      Model.create(name: "One", age: 10)
+
+      Model.where(name: injected).to_a.should eq([model])
+    end
   end
 end
