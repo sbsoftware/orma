@@ -9,7 +9,7 @@ module Orma::RestoreUndeprecatedColumnsSpec
 
   describe "Model.restore_undeprecated_columns!" do
     after_each do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "should rename the column once" do

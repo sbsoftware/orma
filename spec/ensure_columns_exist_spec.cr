@@ -12,7 +12,7 @@ module Orma::EnsureColumnsExistSpec
 
   describe "MyRecord.ensure_columns_exist!" do
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "should add any missing non-deprecated column" do

@@ -7,7 +7,7 @@ end
 
 describe "MyModel" do
   after_each do
-    MyModel.db.close
+    Orma.reset_db!
   end
 
   describe ".find" do

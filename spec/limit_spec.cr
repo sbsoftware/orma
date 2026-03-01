@@ -15,7 +15,7 @@ module Orma::LimitSpec
     end
 
     after_each do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "adds a LIMIT clause to the query" do

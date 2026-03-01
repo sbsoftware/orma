@@ -12,7 +12,7 @@ module Orma::DestroySpec
       MyRecord.continuous_migration!
     end
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "deletes the record from the database" do

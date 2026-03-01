@@ -18,7 +18,7 @@ module Orma::RemoveColumnConstraintsSpec
     after_each do
       DefaultRemovedModel.db.exec("DROP TABLE IF EXISTS #{DefaultRemovedModel.table_name}")
       NotNullRemovedModel.db.exec("DROP TABLE IF EXISTS #{NotNullRemovedModel.table_name}")
-      DefaultRemovedModel.db.close
+      Orma.reset_db!
     end
 
     it "removes DB defaults no longer defined in the model" do

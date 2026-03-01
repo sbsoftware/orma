@@ -16,7 +16,7 @@ module Orma::FindEachSpec
       end
 
       after_each do
-        MyRecord.db.close
+        Orma.reset_db!
       end
 
       describe "with default batch_size" do
@@ -56,7 +56,7 @@ module Orma::FindEachSpec
       end
 
       after_each do
-        MyRecord.db.close
+        Orma.reset_db!
       end
 
       describe "with default batch_size" do

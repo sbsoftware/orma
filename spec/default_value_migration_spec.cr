@@ -24,7 +24,7 @@ module Orma::DefaultValueMigrationSpec
   describe "Model.continuous_migration!" do
     after_each do
       Model.db.exec("DROP TABLE IF EXISTS #{Model.table_name}")
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "backfills NULLs to the default and makes the column NOT NULL" do
@@ -79,7 +79,7 @@ module Orma::DefaultValueMigrationSpec
 
   describe "multiple defaulted columns" do
     after_each do
-      MultiModel.db.close
+      Orma.reset_db!
     end
 
     it "backfills and enforces NOT NULL for each defaulted non-nilable column" do
@@ -108,7 +108,7 @@ module Orma::DefaultValueMigrationSpec
 
   describe "rollback on failure" do
     after_each do
-      RollbackModel.db.close
+      Orma.reset_db!
     end
 
     it "rolls back when the scratch table name already exists" do

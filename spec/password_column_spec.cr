@@ -12,7 +12,7 @@ module Orma::PasswordColumnSpec
       MyModel.continuous_migration!
     end
     after_each do
-      MyModel.db.close
+      Orma.reset_db!
     end
 
     it "should save the password as a hash" do

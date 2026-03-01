@@ -11,7 +11,7 @@ module Orma::SharedDbSpec
 
   describe "shared DB instance" do
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "reuses one database and one pool for all record classes" do

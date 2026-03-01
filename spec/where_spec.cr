@@ -14,7 +14,7 @@ module Orma::WhereSpec
     end
 
     after_each do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "should return the right records" do

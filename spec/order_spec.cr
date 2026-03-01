@@ -12,7 +12,7 @@ module Orma::OrderSpec
     end
 
     after_each do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "orders by id ASC by default" do

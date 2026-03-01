@@ -14,7 +14,7 @@ module Orma::ReloadSpec
     end
 
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "refreshes attributes on the same instance" do
