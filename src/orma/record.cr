@@ -53,15 +53,6 @@ module Orma
                    end
   end
 
-  # :nodoc:
-  def self.reset_db!
-    @@db.try &.close
-  rescue
-  ensure
-    @@db = nil
-    @@db_adapter = nil
-  end
-
   abstract class Record
     @@observers = [] of Proc(self, Nil)
 
