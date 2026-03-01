@@ -13,40 +13,53 @@ module Orma
   @@db_connection_string : String?
   @@db_adapter : DbAdapters::Base?
 
-  private def self.ensure_matching_db_connection_string!(connection_string : String)
-    if configured_connection_string = @@db_connection_string
-      return if configured_connection_string == connection_string
+  def self.db_connection_string
+    @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
+  end
 
-      raise "DB already initialized with '#{configured_connection_string}', but '#{connection_string}' was requested. Orma::Record uses a single global DB instance."
+  def self.db_connection_string=(connection_string : String)
+    if _db = @@db
+      if configured_connection_string = @@db_connection_string
+        if configured_connection_string != connection_string
+          raise "DB already initialized with '#{configured_connection_string}', but '#{connection_string}' was requested. Orma::Record uses a single global DB instance."
+        end
+      end
     end
 
     @@db_connection_string = connection_string
   end
 
-  def self.db(connection_string : String)
-    ensure_matching_db_connection_string!(connection_string)
+  def self.db
     if _db = @@db
       return _db
     end
 
-    @@db = DB.open(connection_string)
+    @@db = DB.open(db_connection_string)
   end
 
-  def self.db_adapter(connection_string : String)
-    ensure_matching_db_connection_string!(connection_string)
+  def self.db_adapter
     if _db_adapter = @@db_adapter
       return _db_adapter
     end
 
-    driver_name = URI.parse(connection_string).scheme
+    driver_name = URI.parse(db_connection_string).scheme
     @@db_adapter = case driver_name
                    when "sqlite3"
-                     DbAdapters::Sqlite3.new(db(connection_string))
+                     DbAdapters::Sqlite3.new(db)
                    when "postgres"
-                     DbAdapters::Postgresql.new(db(connection_string))
+                     DbAdapters::Postgresql.new(db)
                    else
                      raise "No DB adapter for driver '#{driver_name}'"
                    end
+  end
+
+  # :nodoc:
+  def self.reset_db!
+    @@db.try &.close
+  rescue
+  ensure
+    @@db = nil
+    @@db_adapter = nil
   end
 
   abstract class Record
@@ -317,21 +330,17 @@ module Orma
       {% end %}
     end
 
-    def self.db_connection_string
-      ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
-    end
-
     def self.db
       if conn = Fiber.current._orma_current_connection
         return conn
       end
 
-      Orma.db(db_connection_string)
+      Orma.db
     end
 
     # :nodoc:
     def self.db_adapter
-      Orma.db_adapter(db_connection_string)
+      Orma.db_adapter
     end
 
     # :nodoc:
