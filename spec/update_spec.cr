@@ -17,7 +17,7 @@ module Orma::UpdateSpec
       MyRecord.continuous_migration!
     end
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "assigns the given attributes" do

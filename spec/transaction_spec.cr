@@ -13,7 +13,7 @@ module Orma::TransactionSpec
     end
 
     after_each do
-      TxRecord.db.close
+      Orma.reset_db!
     end
 
     it "commits when the block succeeds" do
@@ -49,7 +49,7 @@ module Orma::TransactionSpec
     end
 
     after_each do
-      TxRecord.db.close
+      Orma.reset_db!
     end
 
     it "yields within the same transactional context" do

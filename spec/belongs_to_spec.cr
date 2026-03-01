@@ -27,7 +27,7 @@ describe "belongs_to macro" do
   end
 
   after_each do
-    BelongsToSpec::OptionalComment.db.close
+    Orma.reset_db!
   end
 
   it "adds a required foreign key column by default" do

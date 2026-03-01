@@ -14,7 +14,7 @@ module Orma::FindSpec
     end
 
     after_all do
-      Record.db.close
+      Orma.reset_db!
     end
 
     describe "Record.find" do

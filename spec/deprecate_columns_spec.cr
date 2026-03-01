@@ -9,7 +9,7 @@ module Orma::DeprecateColumnsSpec
 
   describe "MyRecord.deprecate_columns!" do
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "should rename the name column once" do

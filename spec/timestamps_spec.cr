@@ -15,7 +15,7 @@ module Orma::TimestampsSpec
     end
 
     after_all do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     describe "#created_at" do

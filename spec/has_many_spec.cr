@@ -19,7 +19,7 @@ describe "the list class" do
   end
 
   after_each do
-    HasManySpec::List.db.close
+    Orma.reset_db!
   end
 
   describe "#items.to_a" do

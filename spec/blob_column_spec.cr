@@ -13,7 +13,7 @@ module Orma::BlobColumnSpec
     end
 
     after_all do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "should be able to save and load slices of bytes" do
