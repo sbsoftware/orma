@@ -17,7 +17,7 @@ module Orma::CreateSpec
 
   describe "MyRecord.create" do
     after_each do
-      MyRecord.db.close
+      Orma.reset_db!
     end
     before_each do
       MyRecord.continuous_migration!

@@ -9,8 +9,51 @@ require "digest/sha256"
 require "crypto/bcrypt/password"
 
 module Orma
+  @@db : DB::Database?
+  @@db_connection_string : String?
+  @@db_adapter : DbAdapters::Base?
+
+  def self.db_connection_string
+    @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
+  end
+
+  def self.db_connection_string=(connection_string : String)
+    if _db = @@db
+      if configured_connection_string = @@db_connection_string
+        if configured_connection_string != connection_string
+          raise "DB already initialized with '#{configured_connection_string}', but '#{connection_string}' was requested. Orma::Record uses a single global DB instance."
+        end
+      end
+    end
+
+    @@db_connection_string = connection_string
+  end
+
+  def self.db
+    if _db = @@db
+      return _db
+    end
+
+    @@db = DB.open(db_connection_string)
+  end
+
+  def self.db_adapter
+    if _db_adapter = @@db_adapter
+      return _db_adapter
+    end
+
+    driver_name = URI.parse(db_connection_string).scheme
+    @@db_adapter = case driver_name
+                   when "sqlite3"
+                     DbAdapters::Sqlite3.new(db)
+                   when "postgres"
+                     DbAdapters::Postgresql.new(db)
+                   else
+                     raise "No DB adapter for driver '#{driver_name}'"
+                   end
+  end
+
   abstract class Record
-    @@db : DB::Database?
     @@observers = [] of Proc(self, Nil)
 
     # :nodoc:
@@ -51,6 +94,12 @@ module Orma
     end
 
     macro id_column(type_decl)
+      # :nodoc:
+      {% if type_decl.type.resolve.nilable? %}
+        ID_VALUE_TYPE = {{type_decl.type.resolve.union_types.find { |t| t != Nil }}}
+      {% else %}
+        ID_VALUE_TYPE = {{type_decl.type}}
+      {% end %}
       @[IdColumn]
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -175,6 +224,37 @@ module Orma
       end
     end
 
+    # Defines a one-to-one association to another record.
+    #
+    # Example:
+    #   belongs_to Comment
+    #   # => adds `comment_id` column + `#comment` accessor
+    macro belongs_to(klass, required = true)
+      {% assoc_name = klass.resolve.name.underscore.gsub(/::/, "_") %}
+      {% fk_name = "#{assoc_name}_id" %}
+
+      {% id_type = klass.resolve.constant("ID_VALUE_TYPE") %}
+      {% unless id_type %}
+        {% raise "No `id_column` found on #{klass} for belongs_to association on #{@type} (expected #{klass}::ID_VALUE_TYPE)" %}
+      {% end %}
+
+      {% if required == false %}
+        column {{fk_name.id}} : {{id_type}}?
+
+        def {{assoc_name.id}} : {{klass}}?
+          if _id = {{fk_name.id}}.try(&.value)
+            {{klass}}.find(_id)
+          end
+        end
+      {% else %}
+        column {{fk_name.id}} : {{id_type}}
+
+        def {{assoc_name.id}} : {{klass}}
+          {{klass}}.find({{fk_name.id}}.value)
+        end
+      {% end %}
+    end
+
     def self.create(**args : **T) : self forall T
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
         args = args.merge(created_at: args[:created_at]? || Time.utc)
@@ -241,37 +321,17 @@ module Orma
       {% end %}
     end
 
-    def self.db_connection_string
-      ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
-    end
-
     def self.db
       if conn = Fiber.current._orma_current_connection
         return conn
       end
 
-      if _db = @@db
-        return _db
-      end
-
-      @@db = DB.open(db_connection_string)
+      Orma.db
     end
 
     # :nodoc:
     def self.db_adapter
-      if _db_adapter = @@db_adapter
-        return _db_adapter
-      end
-
-      driver_name = URI.parse(db_connection_string).scheme
-      @@db_adapter = case driver_name
-                     when "sqlite3"
-                       DbAdapters::Sqlite3.new(db)
-                     when "postgres"
-                       DbAdapters::Postgresql.new(db)
-                     else
-                       raise "No DB adapter for driver '#{driver_name}'"
-                     end
+      Orma.db_adapter
     end
 
     # :nodoc:
@@ -286,15 +346,14 @@ module Orma
       end
     end
 
-    def self.transaction(&block : -> T) : T? forall T
-      previous = Fiber.current._orma_current_connection
-      db.transaction do |tx|
-        Fiber.current._orma_current_connection = tx.connection
-        begin
-          block.call
-        ensure
-          Fiber.current._orma_current_connection = previous
-        end
+    def self.transaction(&block : -> T) : T forall T
+      db_connection = db
+      if db_connection.is_a?(DB::Connection)
+        return transaction_on_connection(db_connection, &block)
+      end
+
+      db_connection.using_connection do |conn|
+        transaction_on_connection(conn, &block)
       end
     end
 
@@ -316,20 +375,34 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      qry = String.build do |str|
-        str << "SELECT * FROM "
-        str << table_name
-        str << " WHERE id"
-        id.to_sql_where_condition(str)
-        str << " LIMIT 1"
+      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", id.try(&.to_i64))
+    end
+
+    def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
+      where(id: id).first?
+    end
+
+    def reload
+      unless _id = id.try(&.value)
+        raise "Cannot reload record without `id`"
       end
 
-      query_one(qry)
+      sql = "SELECT * FROM #{table_name} WHERE id=? LIMIT 1"
+      args = [_id] of DB::Any
+      begin
+        db.query_one(sql, args: args) do |res|
+          load_attributes_from_result_set(res)
+        end
+      rescue err
+        raise DBError.new(err, sql)
+      end
+
+      self
     end
 
     # :nodoc:
-    def self.query_one(sql)
-      db.query_one(sql) do |res|
+    def self.query_one(sql, *args_, args : Enumerable? = nil)
+      db.query_one(sql, *args_, args: args) do |res|
         new(res)
       end
     rescue err
@@ -368,11 +441,74 @@ module Orma
     end
 
     def destroy
-      db.exec("DELETE FROM #{table_name} WHERE id=#{id}")
+      unless _id = id.try(&.value)
+        raise "Cannot destroy record without `id`"
+      end
+
+      sql = "DELETE FROM #{table_name} WHERE id=?"
+      db.exec(sql, _id)
     end
 
-    def transaction(&block : -> T) : T? forall T
+    def transaction(&block : -> T) : T forall T
       self.class.transaction(&block)
+    end
+
+    # Used by `#reload` to refresh attributes in-place on an existing record instance.
+    private def load_attributes_from_result_set(db_res : DB::ResultSet)
+      {% begin %}
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+          %value{model_col.id} = nil
+        {% end %}
+
+        db_res.each_column do |column|
+          case column
+            {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+              when {{model_col.name.stringify}}, {{"_" + model_col.name.stringify + "_deprecated"}}
+                {% col_type = model_col.type.union_types.find { |t| t != Nil }.type_vars.first %}
+                {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
+                %value{model_col.id} = db_res.read({{read_type}})
+            {% end %}
+          end
+        end
+        {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
+          if %value{model_col.id}.nil?
+            {% if model_col.type.nilable? %}
+              # Keep model state aligned with DB NULL values instead of retaining stale attributes.
+              @{{model_col.name}} = nil
+            {% else %}
+              {% unless model_col.has_default_value? %}
+                raise "nil value encountered for `@{{model_col}}`"
+              {% end %}
+            {% end %}
+          else
+            @{{model_col.name}} = ::Orma::Attribute.new(self.class, {{model_col.name.symbolize}}, %value{model_col.id})
+          end
+        {% end %}
+      {% end %}
+    end
+
+    private def self.transaction_on_connection(connection : DB::Connection, &block : -> T) : T forall T
+      previous = Fiber.current._orma_current_connection
+      rollback = false
+      tx = connection.begin_transaction
+      Fiber.current._orma_current_connection = tx.connection
+      begin
+        return block.call
+      rescue e
+        # Orma always re-raises (including DB::Rollback) to keep transaction return type non-nilable.
+        # This intentionally deviates from crystal-db's DB::BeginTransaction behavior which swallows DB::Rollback.
+        rollback = true
+        raise e
+      ensure
+        Fiber.current._orma_current_connection = previous
+        unless tx.closed?
+          if rollback
+            tx.rollback
+          else
+            tx.commit
+          end
+        end
+      end
     end
 
     private def update_record
@@ -384,19 +520,21 @@ module Orma
         self.updated_at = Time.utc
       {% end %}
 
+      args = [] of DB::Any
       query = String.build do |qry|
         qry << "UPDATE "
         qry << table_name
         qry << " SET "
         column_values.to_h.join(qry, ", ") do |(k, v), io|
           io << k
-          v.to_sql_update_value(io)
+          io << "=?"
+          args << v.to_db_param
         end
-        qry << " WHERE id="
-        qry << _id
+        qry << " WHERE id=?"
       end
+      args << _id
       begin
-        db.exec query
+        db.exec(query, args: args)
       rescue err
         raise DBError.new(err, query)
       end
@@ -410,17 +548,21 @@ module Orma
         self.updated_at ||= Time.utc
       {% end %}
 
+      args = [] of DB::Any
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
         qry << "("
         column_values.keys.join(qry, ", ")
         qry << ") VALUES ("
-        column_values.values.join(qry, ", ") { |v, io| v.to_sql_insert_value(io) }
+        column_values.values.join(qry, ", ") do |v, io|
+          io << "?"
+          args << v.to_db_param
+        end
         qry << ")"
       end
       begin
-        db.exec query
+        db.exec(query, args: args)
       rescue err
         raise DBError.new(err, query)
       end
@@ -434,6 +576,7 @@ module Orma
         {% end %}
       {% end %}
 
+      args_values = [] of DB::Any
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
@@ -443,12 +586,13 @@ module Orma
         end
         qry << ") VALUES ("
         args.to_a.join(qry, ", ") do |(key, value), io|
-          transform_in(key, value).to_sql_insert_value(io)
+          io << "?"
+          args_values << transform_in(key, value).to_db_param
         end
         qry << ")"
       end
       begin
-        res = db.exec(query)
+        res = db.exec(query, args: args_values)
 
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}

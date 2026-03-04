@@ -16,7 +16,7 @@ module Orma::IndexableSpec
     end
 
     after_all do
-      MyRecord.db.close
+      Orma.reset_db!
     end
 
     it "returns a copy of the collection from #to_a" do

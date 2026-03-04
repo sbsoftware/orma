@@ -11,7 +11,7 @@ module Orma::DeleteRemovedDeprecatedColumnsSpec
 
   describe "Model.delete_removed_deprecated_columns!" do
     after_all do
-      Model.db.close
+      Orma.reset_db!
     end
 
     it "should remove deprecated columns that have no corresponding instance var" do

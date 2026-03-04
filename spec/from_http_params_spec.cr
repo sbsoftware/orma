@@ -19,7 +19,7 @@ module Orma::FromHttpParamsSpec
     end
 
     after_all do
-      MyModel.db.close
+      Orma.reset_db!
     end
 
     describe "MyModel.from_http_params" do

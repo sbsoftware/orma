@@ -8,6 +8,10 @@ struct Int64
     io << self
   end
 
+  def to_db_param : DB::Any
+    self
+  end
+
   def self.from_http_param(str)
     new(str)
   end

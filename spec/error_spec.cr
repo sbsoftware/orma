@@ -14,7 +14,7 @@ module Orma::ErrorSpec
           Record.find(2)
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE id=2 LIMIT 1")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE id=? LIMIT 1")
       end
     end
 
@@ -24,7 +24,15 @@ module Orma::ErrorSpec
           Record.where({"name" => "test"}).to_a
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE name='test'")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE name=?")
+      end
+
+      it "uses placeholders for list conditions" do
+        err = expect_raises(Orma::DBError) do
+          Record.where({"id" => [1_i64, 2_i64]}).to_a
+        end
+
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT * FROM orma_error_spec_records WHERE id IN (?,?)")
       end
     end
 
@@ -34,7 +42,7 @@ module Orma::ErrorSpec
           Record.where({"name" => "test"}).count
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT COUNT(*) FROM orma_error_spec_records WHERE name='test'")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: SELECT COUNT(*) FROM orma_error_spec_records WHERE name=?")
       end
     end
 
@@ -44,7 +52,7 @@ module Orma::ErrorSpec
           Record.create(name: "Blah")
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: INSERT INTO orma_error_spec_records(name) VALUES ('Blah')")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: INSERT INTO orma_error_spec_records(name) VALUES (?)")
       end
     end
 
@@ -57,7 +65,7 @@ module Orma::ErrorSpec
           rec1.save
         end
 
-        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: UPDATE orma_error_spec_records SET name='Bar' WHERE id=1")
+        err.message.should eq("SQLite3::Exception: no such table: orma_error_spec_records\n\nSQL Query: UPDATE orma_error_spec_records SET name=? WHERE id=?")
       end
     end
   end
