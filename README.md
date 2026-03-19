@@ -33,9 +33,6 @@ class Comment < Orma::Record
   belongs_to Post
 end
 
-Post.continuous_migration!
-Comment.continuous_migration!
-
 post = Post.create(title: "Hello")
 Comment.create(body: "Nice post", post_id: post.id)
 
