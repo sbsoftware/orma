@@ -53,5 +53,13 @@ module Orma::WhereSpec
 
       Model.where(name: model.name).to_a.should eq([model])
     end
+
+    it "accepts arrays as values" do
+      model1 = Model.create(name: "One", age: 10)
+      model2 = Model.create(name: "Two", age: 20)
+      Model.create(name: "Three", age: 30)
+
+      Model.where(name: ["One", "Two"]).to_a.should eq([model1, model2])
+    end
   end
 end
