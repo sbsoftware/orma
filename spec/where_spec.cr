@@ -47,5 +47,11 @@ module Orma::WhereSpec
 
       Model.where(name: injected).to_a.should eq([model])
     end
+
+    it "accepts Orma::Attribute instances as values" do
+      model = Model.create(name: "One", age: 20)
+
+      Model.where(name: model.name).to_a.should eq([model])
+    end
   end
 end
