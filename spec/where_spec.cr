@@ -61,5 +61,13 @@ module Orma::WhereSpec
 
       Model.where(name: ["One", "Two"]).to_a.should eq([model1, model2])
     end
+
+    it "accepts arrays of Orma::Attribute instances as values" do
+      model1 = Model.create(name: "One", age: 10)
+      model2 = Model.create(name: "Two", age: 20)
+      Model.create(name: "Three", age: 30)
+
+      Model.where(name: [model1.name, model2.name]).to_a.should eq([model1, model2])
+    end
   end
 end
