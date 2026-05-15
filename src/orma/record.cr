@@ -69,7 +69,7 @@ module Orma
       class Query < ::Orma::Query
         PARENT = {{@type}}
 
-        delegate :db, :table_name, :load_many_from_result, to: PARENT
+        delegate :db, :db_adapter, :table_name, :load_many_from_result, to: PARENT
 
         @collection : Array({{@type}})?
       end
@@ -366,6 +366,10 @@ module Orma
       self.class.db
     end
 
+    def db_adapter
+      self.class.db_adapter
+    end
+
     def self.table_name
       {{ @type.name.underscore.gsub(/::/, "_").stringify + "s" }}
     end
@@ -375,7 +379,13 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", id.try(&.to_i64))
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "SELECT * FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, id.try(&.to_i64))
+        qry << " LIMIT 1"
+      end
+      query_one(sql, args: args)
     end
 
     def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
@@ -387,8 +397,12 @@ module Orma
         raise "Cannot reload record without `id`"
       end
 
-      sql = "SELECT * FROM #{table_name} WHERE id=? LIMIT 1"
-      args = [_id] of DB::Any
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "SELECT * FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
+        qry << " LIMIT 1"
+      end
       begin
         db.query_one(sql, args: args) do |res|
           load_attributes_from_result_set(res)
@@ -445,8 +459,12 @@ module Orma
         raise "Cannot destroy record without `id`"
       end
 
-      sql = "DELETE FROM #{table_name} WHERE id=?"
-      db.exec(sql, _id)
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "DELETE FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
+      end
+      db.exec(sql, args: args)
     end
 
     def transaction(&block : -> T) : T forall T
@@ -527,12 +545,12 @@ module Orma
         qry << " SET "
         column_values.to_h.join(qry, ", ") do |(k, v), io|
           io << k
-          io << "=?"
-          args << v.to_db_param
+          io << "="
+          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
         end
-        qry << " WHERE id=?"
+        qry << " WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
       end
-      args << _id
       begin
         db.exec(query, args: args)
       rescue err
@@ -556,8 +574,7 @@ module Orma
         column_values.keys.join(qry, ", ")
         qry << ") VALUES ("
         column_values.values.join(qry, ", ") do |v, io|
-          io << "?"
-          args << v.to_db_param
+          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
         end
         qry << ")"
       end
@@ -586,8 +603,7 @@ module Orma
         end
         qry << ") VALUES ("
         args.to_a.join(qry, ", ") do |(key, value), io|
-          io << "?"
-          args_values << transform_in(key, value).to_db_param
+          db_adapter.add_parameter_placeholder(io, args_values, transform_in(key, value).to_db_param)
         end
         qry << ")"
       end

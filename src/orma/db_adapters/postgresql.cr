@@ -17,6 +17,10 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     "PRIMARY KEY"
   end
 
+  def parameter_placeholder(args : Array(DB::Any))
+    "$#{args.size + 1}"
+  end
+
   def query_index_names
     names = [] of String
 

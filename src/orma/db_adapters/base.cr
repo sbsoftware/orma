@@ -10,6 +10,15 @@ abstract class Orma::DbAdapters::Base
 
   def initialize(@db); end
 
+  def parameter_placeholder(args : Array(DB::Any))
+    "?"
+  end
+
+  def add_parameter_placeholder(io : IO, args : Array(DB::Any), value : DB::Any)
+    io << parameter_placeholder(args)
+    args << value
+  end
+
   def query_column_names(table_name : String) : Array(String)
     names = [] of String
     db.query("SELECT * FROM #{table_name} LIMIT 1") do |res|
