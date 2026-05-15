@@ -1,12 +1,16 @@
 require "./spec_helper"
 
 module Orma::PostgresqlPreparedStatementSpec
-  class FakeDB
+  class FakeDB < DB::Database
     record Call, method : Symbol, sql : String, args : Array(DB::Any)
 
     class QueryCalled < Exception; end
 
     @@calls = [] of Call
+
+    def initialize
+      super(DB::Connection::Options.new, DB::Pool::Options.new(initial_pool_size: 0)) { raise "not used" }
+    end
 
     def self.calls
       @@calls
@@ -45,35 +49,8 @@ module Orma::PostgresqlPreparedStatementSpec
     column name : String
     column age : Int32
 
-    class FakePostgresqlAdapter
-      def db_type_for(klass)
-        raise "not used"
-      end
-
-      def primary_key_column_statement
-        raise "not used"
-      end
-
-      def query_index_names
-        raise "not used"
-      end
-
-      def query_column_names(table_name : String)
-        raise "not used"
-      end
-
-      def sync_column_constraints(table_name : String, constraints : Hash(String, Orma::DbAdapters::DesiredColumnConstraints))
-        raise "not used"
-      end
-
-      def add_parameter_placeholder(io : IO, args : Array(DB::Any), value : DB::Any)
-        io << "$#{args.size + 1}"
-        args << value
-      end
-    end
-
     @@db = FakeDB.new
-    @@db_adapter = FakePostgresqlAdapter.new
+    @@db_adapter = Orma::DbAdapters::Postgresql.new(@@db)
 
     def self.db
       @@db
