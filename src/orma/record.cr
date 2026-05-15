@@ -42,15 +42,19 @@ module Orma
       return _db_adapter
     end
 
+    @@db_adapter = db_adapter_for(db)
+  end
+
+  def self.db_adapter_for(db : DB::Database | DB::Connection)
     driver_name = URI.parse(db_connection_string).scheme
-    @@db_adapter = case driver_name
-                   when "sqlite3"
-                     DbAdapters::Sqlite3.new(db)
-                   when "postgres"
-                     DbAdapters::Postgresql.new(db)
-                   else
-                     raise "No DB adapter for driver '#{driver_name}'"
-                   end
+    case driver_name
+    when "sqlite3"
+      DbAdapters::Sqlite3.new(db)
+    when "postgres"
+      DbAdapters::Postgresql.new(db)
+    else
+      raise "No DB adapter for driver '#{driver_name}'"
+    end
   end
 
   abstract class Record
@@ -331,6 +335,10 @@ module Orma
 
     # :nodoc:
     def self.db_adapter
+      if conn = Fiber.current._orma_current_connection
+        return Orma.db_adapter_for(conn)
+      end
+
       Orma.db_adapter
     end
 
@@ -436,10 +444,10 @@ module Orma
       if id
         update_record
       else
-        exec_res = insert_record
+        record_id = insert_record
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
-          self.id = {{id_type}}.new(exec_res.last_insert_id)
+          self.id = {{id_type}}.new(record_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
         {% end %}
@@ -579,7 +587,7 @@ module Orma
         qry << ")"
       end
       begin
-        db.exec(query, args: args)
+        db_adapter.insert_and_return_id(query, args, self.class.id_column_name)
       rescue err
         raise DBError.new(err, query)
       end
@@ -608,11 +616,11 @@ module Orma
         qry << ")"
       end
       begin
-        res = db.exec(query, args: args_values)
+        record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
 
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
-          {{id_type}}.new(res.last_insert_id)
+          {{id_type}}.new(record_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
         {% end %}
@@ -804,6 +812,15 @@ module Orma
     # :nodoc:
     def self.db_type_for(klass)
       db_adapter.db_type_for(klass)
+    end
+
+    # :nodoc:
+    def self.id_column_name
+      {% if id_var = @type.instance_vars.find { |v| v.annotation(IdColumn) } %}
+        {{id_var.name.stringify}}
+      {% else %}
+        {% raise "No `id` column defined on #{@type}" %}
+      {% end %}
     end
 
     # :nodoc:

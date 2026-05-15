@@ -20,6 +20,10 @@ abstract class Orma::DbAdapters::Base
     args << value
   end
 
+  def insert_and_return_id(query : String, args : Array(DB::Any), id_column : String) : Int64
+    db.exec(query, args: args).last_insert_id
+  end
+
   def query_column_names(table_name : String) : Array(String)
     names = [] of String
     db.query("SELECT * FROM #{table_name} LIMIT 1") do |res|
