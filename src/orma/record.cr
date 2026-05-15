@@ -42,15 +42,19 @@ module Orma
       return _db_adapter
     end
 
+    @@db_adapter = db_adapter_for(db)
+  end
+
+  def self.db_adapter_for(db : DB::Database | DB::Connection)
     driver_name = URI.parse(db_connection_string).scheme
-    @@db_adapter = case driver_name
-                   when "sqlite3"
-                     DbAdapters::Sqlite3.new(db)
-                   when "postgres"
-                     DbAdapters::Postgresql.new(db)
-                   else
-                     raise "No DB adapter for driver '#{driver_name}'"
-                   end
+    case driver_name
+    when "sqlite3"
+      DbAdapters::Sqlite3.new(db)
+    when "postgres"
+      DbAdapters::Postgresql.new(db)
+    else
+      raise "No DB adapter for driver '#{driver_name}'"
+    end
   end
 
   abstract class Record
@@ -69,7 +73,7 @@ module Orma
       class Query < ::Orma::Query
         PARENT = {{@type}}
 
-        delegate :db, :table_name, :load_many_from_result, to: PARENT
+        delegate :db, :db_adapter, :table_name, :load_many_from_result, to: PARENT
 
         @collection : Array({{@type}})?
       end
@@ -154,7 +158,7 @@ module Orma
 
       class Query < ::Orma::Query
         @[::Orma::Query::WhereCondition]
-        @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | ::Orma::Attribute({{col_type}}))?
+        @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | ::Orma::Attribute({{col_type}}) | Array(::Orma::Attribute({{col_type}})))?
 
         def order_by_{{type_decl.var}}!(direction : ::Orma::Query::Direction = :asc)
           @orderings << ::Orma::Query::Ordering.new({{type_decl.var.stringify}}, direction)
@@ -331,6 +335,10 @@ module Orma
 
     # :nodoc:
     def self.db_adapter
+      if conn = Fiber.current._orma_current_connection
+        return Orma.db_adapter_for(conn)
+      end
+
       Orma.db_adapter
     end
 
@@ -366,6 +374,10 @@ module Orma
       self.class.db
     end
 
+    def db_adapter
+      self.class.db_adapter
+    end
+
     def self.table_name
       {{ @type.name.underscore.gsub(/::/, "_").stringify + "s" }}
     end
@@ -375,7 +387,13 @@ module Orma
     end
 
     def self.find(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
-      query_one("SELECT * FROM #{table_name} WHERE id=? LIMIT 1", id.try(&.to_i64))
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "SELECT * FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, id.try(&.to_i64))
+        qry << " LIMIT 1"
+      end
+      query_one(sql, args: args)
     end
 
     def self.find?(id : Int8 | Int16 | Int32 | Int64 | Int128 | Orma::Attribute(Int)?)
@@ -387,8 +405,12 @@ module Orma
         raise "Cannot reload record without `id`"
       end
 
-      sql = "SELECT * FROM #{table_name} WHERE id=? LIMIT 1"
-      args = [_id] of DB::Any
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "SELECT * FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
+        qry << " LIMIT 1"
+      end
       begin
         db.query_one(sql, args: args) do |res|
           load_attributes_from_result_set(res)
@@ -422,10 +444,10 @@ module Orma
       if id
         update_record
       else
-        exec_res = insert_record
+        record_id = insert_record
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
-          self.id = {{id_type}}.new(exec_res.last_insert_id)
+          self.id = {{id_type}}.new(record_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
         {% end %}
@@ -445,8 +467,12 @@ module Orma
         raise "Cannot destroy record without `id`"
       end
 
-      sql = "DELETE FROM #{table_name} WHERE id=?"
-      db.exec(sql, _id)
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "DELETE FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
+      end
+      db.exec(sql, args: args)
     end
 
     def transaction(&block : -> T) : T forall T
@@ -527,12 +553,12 @@ module Orma
         qry << " SET "
         column_values.to_h.join(qry, ", ") do |(k, v), io|
           io << k
-          io << "=?"
-          args << v.to_db_param
+          io << "="
+          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
         end
-        qry << " WHERE id=?"
+        qry << " WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, _id)
       end
-      args << _id
       begin
         db.exec(query, args: args)
       rescue err
@@ -556,13 +582,12 @@ module Orma
         column_values.keys.join(qry, ", ")
         qry << ") VALUES ("
         column_values.values.join(qry, ", ") do |v, io|
-          io << "?"
-          args << v.to_db_param
+          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
         end
         qry << ")"
       end
       begin
-        db.exec(query, args: args)
+        db_adapter.insert_and_return_id(query, args, self.class.id_column_name)
       rescue err
         raise DBError.new(err, query)
       end
@@ -586,17 +611,16 @@ module Orma
         end
         qry << ") VALUES ("
         args.to_a.join(qry, ", ") do |(key, value), io|
-          io << "?"
-          args_values << transform_in(key, value).to_db_param
+          db_adapter.add_parameter_placeholder(io, args_values, transform_in(key, value).to_db_param)
         end
         qry << ")"
       end
       begin
-        res = db.exec(query, args: args_values)
+        record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
 
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
         {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
-          {{id_type}}.new(res.last_insert_id)
+          {{id_type}}.new(record_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
         {% end %}
@@ -765,7 +789,7 @@ module Orma
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(IdColumn) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
+          "{{var.name.id}} #{primary_key_db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Column) } %}
           begin
@@ -788,6 +812,20 @@ module Orma
     # :nodoc:
     def self.db_type_for(klass)
       db_adapter.db_type_for(klass)
+    end
+
+    # :nodoc:
+    def self.id_column_name
+      {% if id_var = @type.instance_vars.find { |v| v.annotation(IdColumn) } %}
+        {{id_var.name.stringify}}
+      {% else %}
+        {% raise "No `id` column defined on #{@type}" %}
+      {% end %}
+    end
+
+    # :nodoc:
+    def self.primary_key_db_type_for(klass)
+      db_adapter.primary_key_db_type_for(klass)
     end
 
     # :nodoc:

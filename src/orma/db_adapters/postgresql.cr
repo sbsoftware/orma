@@ -4,17 +4,36 @@ require "./base"
 class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
   def db_type_for(klass)
     case klass
-    in Int64.class        then "BIGSERIAL"
-    in Int32.class        then "SERIAL"
+    in Int64.class        then "BIGINT"
+    in Int32.class        then "INTEGER"
     in String.class       then "VARCHAR"
     in Bool.class         then "BOOLEAN"
     in Time.class         then "TIMESTAMP"
-    in Slice(UInt8).class then "BLOB"
+    in Slice(UInt8).class then "BYTEA"
+    end
+  end
+
+  def primary_key_db_type_for(klass)
+    case klass
+    when Int64.class then "BIGSERIAL"
+    when Int32.class then "SERIAL"
+    else
+      db_type_for(klass)
     end
   end
 
   def primary_key_column_statement
     "PRIMARY KEY"
+  end
+
+  def parameter_placeholder(args : Array(DB::Any))
+    "$#{args.size + 1}"
+  end
+
+  def insert_and_return_id(query : String, args : Array(DB::Any), id_column : String) : Int64
+    db.query_one("#{query} RETURNING #{id_column}::bigint", args: args) do |res|
+      res.read(Int64)
+    end
   end
 
   def query_index_names

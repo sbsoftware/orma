@@ -124,7 +124,7 @@ abstract class Orma::Query
           end
 
           str << %value{ivar}.name
-          %value{ivar}.value.to_prepared_where_condition(str, args)
+          %value{ivar}.value.to_prepared_where_condition(str, args, db_adapter)
         end
       {% end %}
     end
@@ -163,16 +163,22 @@ abstract class Orma::Query
   private def limit_clause(args : Array(DB::Any))
     return nil unless limit = @limit
 
-    args << limit
-    " LIMIT ?"
+    String.build do |str|
+      str << " LIMIT "
+      db_adapter.add_parameter_placeholder(str, args, limit)
+    end
   end
 
   private def load_batch(batch_no, batch_size)
     base = build_query("*", include_limit: false)
-    sql = "#{base.sql} LIMIT ? OFFSET ?"
     args = base.args.dup
-    args << batch_size.to_i64
-    args << (batch_no * batch_size).to_i64
+    sql = String.build do |str|
+      str << base.sql
+      str << " LIMIT "
+      db_adapter.add_parameter_placeholder(str, args, batch_size.to_i64)
+      str << " OFFSET "
+      db_adapter.add_parameter_placeholder(str, args, (batch_no * batch_size).to_i64)
+    end
     begin
       db.query(sql, args: args) do |res|
         load_many_from_result(res)

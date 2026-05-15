@@ -34,6 +34,10 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     "PRIMARY KEY AUTOINCREMENT"
   end
 
+  def primary_key_db_type_for(klass)
+    db_type_for(klass)
+  end
+
   def query_column_names(table_name : String) : Array(String)
     sqlite_column_infos(table_name).map(&.name)
   end
