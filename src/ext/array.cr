@@ -16,7 +16,7 @@ class Array(T)
     io << " IN "
   end
 
-  def to_prepared_where_condition(io : IO, args : Array(DB::Any), db_adapter : Orma::DbAdapters::Base)
+  def to_prepared_where_condition(io : IO, args : Array(DB::Any), db_adapter)
     sql_eq_operator(io)
 
     io << "("
