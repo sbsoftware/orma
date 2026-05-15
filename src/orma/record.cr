@@ -781,7 +781,7 @@ module Orma
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(IdColumn) } %}
-          "{{var.name.id}} #{db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
+          "{{var.name.id}} #{primary_key_db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Column) } %}
           begin
@@ -804,6 +804,11 @@ module Orma
     # :nodoc:
     def self.db_type_for(klass)
       db_adapter.db_type_for(klass)
+    end
+
+    # :nodoc:
+    def self.primary_key_db_type_for(klass)
+      db_adapter.primary_key_db_type_for(klass)
     end
 
     # :nodoc:

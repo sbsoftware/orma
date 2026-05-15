@@ -4,12 +4,21 @@ require "./base"
 class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
   def db_type_for(klass)
     case klass
-    in Int64.class        then "BIGSERIAL"
-    in Int32.class        then "SERIAL"
+    in Int64.class        then "BIGINT"
+    in Int32.class        then "INTEGER"
     in String.class       then "VARCHAR"
     in Bool.class         then "BOOLEAN"
     in Time.class         then "TIMESTAMP"
-    in Slice(UInt8).class then "BLOB"
+    in Slice(UInt8).class then "BYTEA"
+    end
+  end
+
+  def primary_key_db_type_for(klass)
+    case klass
+    when Int64.class then "BIGSERIAL"
+    when Int32.class then "SERIAL"
+    else
+      db_type_for(klass)
     end
   end
 
