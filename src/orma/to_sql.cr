@@ -3,10 +3,9 @@ require "db"
 module Orma
   # :nodoc:
   module ToSql
-    def to_prepared_where_condition(io : IO, args : Array(DB::Any))
+    def to_prepared_where_condition(io : IO, args : Array(DB::Any), db_adapter : Orma::DbAdapters::Base)
       sql_eq_operator(io)
-      io << "?"
-      args << to_db_param
+      db_adapter.add_parameter_placeholder(io, args, to_db_param)
     end
 
     def to_db_param : DB::Any
