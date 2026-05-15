@@ -30,6 +30,12 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     "$#{args.size + 1}"
   end
 
+  def insert_and_return_id(query : String, args : Array(DB::Any), id_column : String) : Int64
+    db.query_one("#{query} RETURNING #{id_column}::bigint", args: args) do |res|
+      res.read(Int64)
+    end
+  end
+
   def query_index_names
     names = [] of String
 

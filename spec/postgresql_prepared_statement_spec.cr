@@ -61,6 +61,23 @@ module Orma::PostgresqlPreparedStatementSpec
     end
   end
 
+  class UnsavedRecord < TestRecord
+    id_column id : Int64?
+    column name : String
+    column age : Int32
+
+    @@db = FakeDB.new
+    @@db_adapter = Orma::DbAdapters::Postgresql.new(@@db)
+
+    def self.db
+      @@db
+    end
+
+    def self.db_adapter
+      @@db_adapter
+    end
+  end
+
   private def self.db_args(*values)
     values.to_a.map(&.as(DB::Any))
   end
@@ -121,9 +138,19 @@ module Orma::PostgresqlPreparedStatementSpec
     end
 
     describe "via .create" do
-      it "uses numbered placeholders" do
-        expect_db_call(FakeDB::Call.new(:exec, "INSERT INTO orma_postgresql_prepared_statement_spec_records(name, age) VALUES ($1, $2)", db_args("Blah", 1))) do
+      it "uses numbered placeholders and returns the inserted id" do
+        expect_db_call(FakeDB::Call.new(:query_one, "INSERT INTO orma_postgresql_prepared_statement_spec_records(name, age) VALUES ($1, $2) RETURNING id::bigint", db_args("Blah", 1))) do
           Record.create(name: "Blah", age: 1)
+        end
+      end
+    end
+
+    describe "via #save on a new record" do
+      it "uses numbered placeholders and returns the inserted id" do
+        rec = UnsavedRecord.new(name: "Foo", age: 1)
+
+        expect_db_call(FakeDB::Call.new(:query_one, "INSERT INTO orma_postgresql_prepared_statement_spec_unsaved_records(name, age) VALUES ($1, $2) RETURNING id::bigint", db_args("Foo", 1))) do
+          rec.save
         end
       end
     end
