@@ -15,14 +15,4 @@ class Array(T)
   def sql_eq_operator(io)
     io << " IN "
   end
-
-  def to_prepared_where_condition(io : IO, args : Array(DB::Any), db_adapter : Orma::DbAdapters::Base)
-    sql_eq_operator(io)
-
-    io << "("
-    join(io, ",") do |item, io|
-      db_adapter.add_parameter_placeholder(io, args, item.to_db_param)
-    end
-    io << ")"
-  end
 end

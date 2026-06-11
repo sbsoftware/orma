@@ -4,7 +4,45 @@ abstract class Orma::Query
 
   abstract def load_many_from_result(res)
 
-  private record Statement, sql : String, args : Array(DB::Any)
+  private class Statement
+    getter args = [] of DB::Any
+
+    def initialize(@db_adapter : Orma::DbAdapters::Base)
+      @sql = IO::Memory.new
+    end
+
+    def sql
+      @sql.to_s
+    end
+
+    def <<(value)
+      @sql << value
+      self
+    end
+
+    def add_parameter(value : DB::Any)
+      @sql << @db_adapter.parameter_placeholder(args)
+      args << value
+    end
+
+    def add_where_condition(value)
+      value.sql_eq_operator(@sql)
+      # Arrays expand to one placeholder per item, while nil is rendered as a SQL literal.
+      case value
+      when Array
+        @sql << "("
+        value.each_with_index do |item, index|
+          @sql << "," unless index == 0
+          add_parameter(item.to_db_param)
+        end
+        @sql << ")"
+      when Nil
+        value.to_sql_value(@sql)
+      else
+        add_parameter(value.to_db_param)
+      end
+    end
+  end
 
   delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, :any?, :empty?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
 
@@ -110,24 +148,22 @@ abstract class Orma::Query
     collection.dup.to_a
   end
 
-  private def where_clause(args : Array(DB::Any))
+  private def add_where_clause(statement : Statement)
     first = true
 
-    String.build do |str|
-      {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
-        if %value{ivar} = @{{ivar.name}}
-          if first
-            str << " WHERE "
-            first = false
-          else
-            str << " AND "
-          end
-
-          str << %value{ivar}.name
-          %value{ivar}.value.to_prepared_where_condition(str, args, db_adapter)
+    {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
+      if %value{ivar} = @{{ivar.name}}
+        if first
+          statement << " WHERE "
+          first = false
+        else
+          statement << " AND "
         end
-      {% end %}
-    end
+
+        statement << %value{ivar}.name
+        statement.add_where_condition(%value{ivar}.value)
+      end
+    {% end %}
   end
 
   private def order_clause
@@ -148,43 +184,33 @@ abstract class Orma::Query
   end
 
   private def build_query(select_clause, *, include_limit = true) : Statement
-    args = [] of DB::Any
-    sql = String.build do |str|
-      str << "SELECT #{select_clause} FROM #{table_name}"
-      str << where_clause(args)
-      str << order_clause
-      if include_limit
-        str << limit_clause(args)
-      end
-    end
-    Statement.new(sql, args)
+    statement = Statement.new(db_adapter)
+    statement << "SELECT #{select_clause} FROM #{table_name}"
+    add_where_clause(statement)
+    statement << order_clause
+    add_limit_clause(statement) if include_limit
+    statement
   end
 
-  private def limit_clause(args : Array(DB::Any))
+  private def add_limit_clause(statement : Statement)
     return nil unless limit = @limit
 
-    String.build do |str|
-      str << " LIMIT "
-      db_adapter.add_parameter_placeholder(str, args, limit)
-    end
+    statement << " LIMIT "
+    statement.add_parameter(limit)
   end
 
   private def load_batch(batch_no, batch_size)
-    base = build_query("*", include_limit: false)
-    args = base.args.dup
-    sql = String.build do |str|
-      str << base.sql
-      str << " LIMIT "
-      db_adapter.add_parameter_placeholder(str, args, batch_size.to_i64)
-      str << " OFFSET "
-      db_adapter.add_parameter_placeholder(str, args, (batch_no * batch_size).to_i64)
-    end
+    statement = build_query("*", include_limit: false)
+    statement << " LIMIT "
+    statement.add_parameter(batch_size.to_i64)
+    statement << " OFFSET "
+    statement.add_parameter((batch_no * batch_size).to_i64)
     begin
-      db.query(sql, args: args) do |res|
+      db.query(statement.sql, args: statement.args) do |res|
         load_many_from_result(res)
       end
     rescue err
-      raise DBError.new(err, sql)
+      raise DBError.new(err, statement.sql)
     end
   end
 
