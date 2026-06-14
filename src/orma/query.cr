@@ -4,7 +4,64 @@ abstract class Orma::Query
 
   abstract def load_many_from_result(res)
 
-  private record Statement, sql : String, args : Array(DB::Any)
+  private class Statement
+    getter args = [] of DB::Any
+
+    def initialize(@db_adapter : Orma::DbAdapters::Base, select_clause, table_name)
+      @sql = IO::Memory.new
+      @has_where_condition = false
+      @sql << "SELECT #{select_clause} FROM #{table_name}"
+    end
+
+    def sql
+      @sql.to_s
+    end
+
+    def add_where_condition(name, value)
+      @sql << (@has_where_condition ? " AND " : " WHERE ")
+      @has_where_condition = true
+      @sql << name
+      value.sql_eq_operator(@sql)
+      # Arrays expand to one placeholder per item, while nil is rendered as a SQL literal.
+      case value
+      when Array
+        @sql << "("
+        value.each_with_index do |item, index|
+          @sql << "," unless index == 0
+          add_parameter(item.to_db_param)
+        end
+        @sql << ")"
+      when Nil
+        value.to_sql_value(@sql)
+      else
+        add_parameter(value.to_db_param)
+      end
+    end
+
+    def add_order_clause(orderings)
+      return unless orderings.any?
+
+      @sql << " ORDER BY "
+      orderings.join(@sql, ", ")
+    end
+
+    def add_limit(limit)
+      return unless limit
+
+      @sql << " LIMIT "
+      add_parameter(limit)
+    end
+
+    def add_offset(offset)
+      @sql << " OFFSET "
+      add_parameter(offset)
+    end
+
+    private def add_parameter(value : DB::Any)
+      @sql << @db_adapter.parameter_placeholder(args)
+      args << value
+    end
+  end
 
   delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, :any?, :empty?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
 
@@ -110,33 +167,12 @@ abstract class Orma::Query
     collection.dup.to_a
   end
 
-  private def where_clause(args : Array(DB::Any))
-    first = true
-
-    String.build do |str|
-      {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
-        if %value{ivar} = @{{ivar.name}}
-          if first
-            str << " WHERE "
-            first = false
-          else
-            str << " AND "
-          end
-
-          str << %value{ivar}.name
-          %value{ivar}.value.to_prepared_where_condition(str, args, db_adapter)
-        end
-      {% end %}
-    end
-  end
-
-  private def order_clause
-    return nil unless orderings.any?
-
-    String.build do |str|
-      str << " ORDER BY "
-      orderings.join(str, ", ")
-    end
+  private def add_where_clause(statement : Statement)
+    {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
+      if %value{ivar} = @{{ivar.name}}
+        statement.add_where_condition(%value{ivar}.name, %value{ivar}.value)
+      end
+    {% end %}
   end
 
   private def count_query : Statement
@@ -148,43 +184,23 @@ abstract class Orma::Query
   end
 
   private def build_query(select_clause, *, include_limit = true) : Statement
-    args = [] of DB::Any
-    sql = String.build do |str|
-      str << "SELECT #{select_clause} FROM #{table_name}"
-      str << where_clause(args)
-      str << order_clause
-      if include_limit
-        str << limit_clause(args)
-      end
-    end
-    Statement.new(sql, args)
-  end
-
-  private def limit_clause(args : Array(DB::Any))
-    return nil unless limit = @limit
-
-    String.build do |str|
-      str << " LIMIT "
-      db_adapter.add_parameter_placeholder(str, args, limit)
-    end
+    statement = Statement.new(db_adapter, select_clause, table_name)
+    add_where_clause(statement)
+    statement.add_order_clause(orderings)
+    statement.add_limit(@limit) if include_limit
+    statement
   end
 
   private def load_batch(batch_no, batch_size)
-    base = build_query("*", include_limit: false)
-    args = base.args.dup
-    sql = String.build do |str|
-      str << base.sql
-      str << " LIMIT "
-      db_adapter.add_parameter_placeholder(str, args, batch_size.to_i64)
-      str << " OFFSET "
-      db_adapter.add_parameter_placeholder(str, args, (batch_no * batch_size).to_i64)
-    end
+    statement = build_query("*", include_limit: false)
+    statement.add_limit(batch_size.to_i64)
+    statement.add_offset((batch_no * batch_size).to_i64)
     begin
-      db.query(sql, args: args) do |res|
+      db.query(statement.sql, args: statement.args) do |res|
         load_many_from_result(res)
       end
     rescue err
-      raise DBError.new(err, sql)
+      raise DBError.new(err, statement.sql)
     end
   end
 

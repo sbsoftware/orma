@@ -122,6 +122,24 @@ module Orma::PostgresqlPreparedStatementSpec
         end
       end
 
+      it "handles empty list conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE id IN ()", db_args)) do
+          Record.where(id: [] of Int64).to_a
+        end
+      end
+
+      it "handles nil conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name IS NULL", db_args)) do
+          Record.where(name: nil).to_a
+        end
+      end
+
+      it "continues after conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name IS NULL AND age=$1", db_args(1))) do
+          Record.where(name: nil, age: 1).to_a
+        end
+      end
+
       it "continues numbering through limits" do
         expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name=$1 LIMIT $2", db_args("test", 5_i64))) do
           Record.where(name: "test").limit(5).to_a
