@@ -7,25 +7,20 @@ abstract class Orma::Query
   private class Statement
     getter args = [] of DB::Any
 
-    def initialize(@db_adapter : Orma::DbAdapters::Base)
+    def initialize(@db_adapter : Orma::DbAdapters::Base, select_clause, table_name)
       @sql = IO::Memory.new
+      @has_where_condition = false
+      @sql << "SELECT #{select_clause} FROM #{table_name}"
     end
 
     def sql
       @sql.to_s
     end
 
-    def <<(value)
-      @sql << value
-      self
-    end
-
-    def add_parameter(value : DB::Any)
-      @sql << @db_adapter.parameter_placeholder(args)
-      args << value
-    end
-
-    def add_where_condition(value)
+    def add_where_condition(name, value)
+      @sql << (@has_where_condition ? " AND " : " WHERE ")
+      @has_where_condition = true
+      @sql << name
       value.sql_eq_operator(@sql)
       # Arrays expand to one placeholder per item, while nil is rendered as a SQL literal.
       case value
@@ -41,6 +36,30 @@ abstract class Orma::Query
       else
         add_parameter(value.to_db_param)
       end
+    end
+
+    def add_order_clause(orderings)
+      return unless orderings.any?
+
+      @sql << " ORDER BY "
+      orderings.join(@sql, ", ")
+    end
+
+    def add_limit(limit)
+      return unless limit
+
+      @sql << " LIMIT "
+      add_parameter(limit)
+    end
+
+    def add_offset(offset)
+      @sql << " OFFSET "
+      add_parameter(offset)
+    end
+
+    private def add_parameter(value : DB::Any)
+      @sql << @db_adapter.parameter_placeholder(args)
+      args << value
     end
   end
 
@@ -149,30 +168,11 @@ abstract class Orma::Query
   end
 
   private def add_where_clause(statement : Statement)
-    first = true
-
     {% for ivar in (condition_vars = @type.instance_vars.select { |iv| iv.annotation(WhereCondition) }) %}
       if %value{ivar} = @{{ivar.name}}
-        if first
-          statement << " WHERE "
-          first = false
-        else
-          statement << " AND "
-        end
-
-        statement << %value{ivar}.name
-        statement.add_where_condition(%value{ivar}.value)
+        statement.add_where_condition(%value{ivar}.name, %value{ivar}.value)
       end
     {% end %}
-  end
-
-  private def order_clause
-    return nil unless orderings.any?
-
-    String.build do |str|
-      str << " ORDER BY "
-      orderings.join(str, ", ")
-    end
   end
 
   private def count_query : Statement
@@ -184,27 +184,17 @@ abstract class Orma::Query
   end
 
   private def build_query(select_clause, *, include_limit = true) : Statement
-    statement = Statement.new(db_adapter)
-    statement << "SELECT #{select_clause} FROM #{table_name}"
+    statement = Statement.new(db_adapter, select_clause, table_name)
     add_where_clause(statement)
-    statement << order_clause
-    add_limit_clause(statement) if include_limit
+    statement.add_order_clause(orderings)
+    statement.add_limit(@limit) if include_limit
     statement
-  end
-
-  private def add_limit_clause(statement : Statement)
-    return nil unless limit = @limit
-
-    statement << " LIMIT "
-    statement.add_parameter(limit)
   end
 
   private def load_batch(batch_no, batch_size)
     statement = build_query("*", include_limit: false)
-    statement << " LIMIT "
-    statement.add_parameter(batch_size.to_i64)
-    statement << " OFFSET "
-    statement.add_parameter((batch_no * batch_size).to_i64)
+    statement.add_limit(batch_size.to_i64)
+    statement.add_offset((batch_no * batch_size).to_i64)
     begin
       db.query(statement.sql, args: statement.args) do |res|
         load_many_from_result(res)
