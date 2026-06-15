@@ -3,7 +3,7 @@ require "sqlite3"
 
 module Orma::ReloadSpec
   class MyRecord < TestRecord
-    id_column id : Int32?
+    id_column id : Int32
     column name : String
     column title : String?
   end
@@ -37,14 +37,6 @@ module Orma::ReloadSpec
       rec = MyRecord.create(name: "Foo")
 
       rec.reload.should be(rec)
-    end
-
-    it "raises when called without an id" do
-      rec = MyRecord.new(name: "Unsaved")
-
-      expect_raises(Exception, "Cannot reload record without `id`") do
-        rec.reload
-      end
     end
 
     it "raises when the row no longer exists" do

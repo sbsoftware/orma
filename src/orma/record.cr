@@ -100,10 +100,9 @@ module Orma
     macro id_column(type_decl)
       # :nodoc:
       {% if type_decl.type.resolve.nilable? %}
-        ID_VALUE_TYPE = {{type_decl.type.resolve.union_types.find { |t| t != Nil }}}
-      {% else %}
-        ID_VALUE_TYPE = {{type_decl.type}}
+        {% type_decl.raise("id_column must not be nilable") %}
       {% end %}
+      ID_VALUE_TYPE = {{type_decl.type}}
       @[IdColumn]
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -401,14 +400,10 @@ module Orma
     end
 
     def reload
-      unless _id = id.try(&.value)
-        raise "Cannot reload record without `id`"
-      end
-
       args = [] of DB::Any
       sql = String.build do |qry|
         qry << "SELECT * FROM #{table_name} WHERE id="
-        db_adapter.add_parameter_placeholder(qry, args, _id)
+        db_adapter.add_parameter_placeholder(qry, args, id.value)
         qry << " LIMIT 1"
       end
       begin
@@ -441,17 +436,7 @@ module Orma
     end
 
     def save
-      if id
-        update_record
-      else
-        record_id = insert_record
-        # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
-          self.id = {{id_type}}.new(record_id)
-        {% else %}
-          {% raise "No `id` column defined on #{@type}" %}
-        {% end %}
-      end
+      update_record
       notify_observers
     end
 
@@ -463,14 +448,10 @@ module Orma
     end
 
     def destroy
-      unless _id = id.try(&.value)
-        raise "Cannot destroy record without `id`"
-      end
-
       args = [] of DB::Any
       sql = String.build do |qry|
         qry << "DELETE FROM #{table_name} WHERE id="
-        db_adapter.add_parameter_placeholder(qry, args, _id)
+        db_adapter.add_parameter_placeholder(qry, args, id.value)
       end
       db.exec(sql, args: args)
     end
@@ -538,10 +519,6 @@ module Orma
     end
 
     private def update_record
-      unless _id = id.try(&.value)
-        raise "Cannot update record without `id`"
-      end
-
       {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
         self.updated_at = Time.utc
       {% end %}
@@ -557,7 +534,7 @@ module Orma
           db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
         end
         qry << " WHERE id="
-        db_adapter.add_parameter_placeholder(qry, args, _id)
+        db_adapter.add_parameter_placeholder(qry, args, id.value)
       end
       begin
         db.exec(query, args: args)
@@ -619,7 +596,7 @@ module Orma
         record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
 
         # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.union_types.find { |t| t != Nil }.type_vars.first %}
+        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first %}
           {{id_type}}.new(record_id)
         {% else %}
           {% raise "No `id` column defined on #{@type}" %}
@@ -789,7 +766,7 @@ module Orma
     macro db_column_statements
       [
         {% for var in @type.instance_vars.select { |v| v.annotation(IdColumn) } %}
-          "{{var.name.id}} #{primary_key_db_type_for({{var.type.union_types.find { |t| t != Nil }.type_vars.first.id}})} #{primary_key_column_statement}",
+          "{{var.name.id}} #{primary_key_db_type_for({{var.type.type_vars.first.id}})} #{primary_key_column_statement}",
         {% end %}
         {% for var in @type.instance_vars.select { |v| v.annotation(Column) } %}
           begin
