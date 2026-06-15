@@ -14,7 +14,10 @@ module Orma
   @@db_adapter : DbAdapters::Base?
 
   def self.db_connection_string
-    @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
+    connection_string = @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
+    return connection_string unless URI.parse(connection_string).scheme == "sqlite3"
+
+    DbAdapters::Sqlite3.add_default_connection_string_options(connection_string)
   end
 
   def self.db_connection_string=(connection_string : String)
