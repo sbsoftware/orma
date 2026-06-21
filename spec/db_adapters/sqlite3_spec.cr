@@ -15,3 +15,19 @@ describe Orma::DbAdapters::Sqlite3 do
     end
   end
 end
+
+describe Orma do
+  describe ".db_connection_string" do
+    after_each do
+      Orma.reset_db!
+      Orma.db_connection_string = TEST_DB_CONNECTION_STRING
+    end
+
+    it "returns the raw configured connection string" do
+      Orma.reset_db!
+      Orma.db_connection_string = "sqlite3:%3Amemory%3A?max_pool_size=1"
+
+      Orma.db_connection_string.should eq("sqlite3:%3Amemory%3A?max_pool_size=1")
+    end
+  end
+end
