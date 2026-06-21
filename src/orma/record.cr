@@ -231,7 +231,8 @@ module Orma
     end
 
     macro has_many_of(klass)
-      def {{klass.resolve.name.underscore.gsub(/::/, "_").id}}s
+      # Keep the target unresolved so reverse belongs_to declarations can define the class later.
+      def {{klass.stringify.gsub(/^::/, "").underscore.gsub(/::/, "_").id}}s
         {{klass}}.where({{@type.name.underscore.gsub(/::/, "_").id}}_id: id)
       end
     end
