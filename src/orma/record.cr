@@ -17,6 +17,11 @@ module Orma
     @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
   end
 
+  private def self.db_connection_string_with_default_options
+    adapter_class = db_adapter_class
+    adapter_class.add_default_connection_string_options(db_connection_string)
+  end
+
   def self.db_connection_string=(connection_string : String)
     if _db = @@db
       if configured_connection_string = @@db_connection_string
@@ -34,7 +39,7 @@ module Orma
       return _db
     end
 
-    @@db = DB.open(db_connection_string)
+    @@db = DB.open(db_connection_string_with_default_options)
   end
 
   def self.db_adapter
@@ -46,12 +51,16 @@ module Orma
   end
 
   def self.db_adapter_for(db : DB::Database | DB::Connection)
+    db_adapter_class.new(db)
+  end
+
+  private def self.db_adapter_class
     driver_name = URI.parse(db_connection_string).scheme
     case driver_name
     when "sqlite3"
-      DbAdapters::Sqlite3.new(db)
+      DbAdapters::Sqlite3
     when "postgres"
-      DbAdapters::Postgresql.new(db)
+      DbAdapters::Postgresql
     else
       raise "No DB adapter for driver '#{driver_name}'"
     end
