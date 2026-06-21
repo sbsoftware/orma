@@ -11,6 +11,10 @@ abstract class Orma::DbAdapters::Base
 
   def initialize(@db); end
 
+  def self.add_default_connection_string_options(connection_string : String) : String
+    connection_string
+  end
+
   def parameter_placeholder(args : Array(DB::Any))
     "?"
   end
