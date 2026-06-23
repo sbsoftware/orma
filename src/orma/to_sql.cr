@@ -12,6 +12,12 @@ module Orma
       to_sql_value(io)
     end
 
+    def to_sql_where_condition(io : IO, db_adapter, args, name)
+      io << name
+      sql_eq_operator(io)
+      db_adapter.add_parameter_placeholder(io, args, to_db_param)
+    end
+
     def to_sql_where_condition : String
       String.build do |io|
         to_sql_where_condition(io)

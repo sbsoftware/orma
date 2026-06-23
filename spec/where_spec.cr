@@ -95,6 +95,19 @@ module Orma::WhereSpec
       Model.where({"age" => 10...20}).to_a.should eq([model])
     end
 
+    it "accepts ranges with mixed literal and Orma::Attribute bounds" do
+      model0 = Model.create(name: "Five", age: 5)
+      model1 = Model.create(name: "Ten", age: 10)
+      model2 = Model.create(name: "Twenty", age: 20)
+      model3 = Model.create(name: "Thirty", age: 30)
+
+      Model.where(age: 10..Model.age(20)).order_by_age!.to_a.should eq([model1, model2])
+      Model.where(age: Model.age(10)..20).order_by_age!.to_a.should eq([model1, model2])
+      Model.where(age: Model.age(10)..Model.age(20)).order_by_age!.to_a.should eq([model1, model2])
+      Model.where(age: Model.age(20)..).order_by_age!.to_a.should eq([model2, model3])
+      Model.where(age: ..Model.age(10)).order_by_age!.to_a.should eq([model0, model1])
+    end
+
     it "accepts exclusive finite ranges as values" do
       Model.create(name: "Five", age: 5)
       model = Model.create(name: "Ten", age: 10)
