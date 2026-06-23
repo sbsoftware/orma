@@ -77,5 +77,53 @@ module Orma::WhereSpec
     it "handles an empty array of Orma::Attribute" do
       Model.where(name: [] of Orma::Attribute(String)).to_a.should eq([] of Model)
     end
+
+    it "accepts inclusive finite ranges as values" do
+      Model.create(name: "Five", age: 5)
+      model1 = Model.create(name: "Ten", age: 10)
+      model2 = Model.create(name: "Twenty", age: 20)
+      Model.create(name: "Thirty", age: 30)
+
+      Model.where(age: 10..20).order_by_age!.to_a.should eq([model1, model2])
+    end
+
+    it "accepts ranges in hash conditions" do
+      Model.create(name: "Five", age: 5)
+      model = Model.create(name: "Ten", age: 10)
+      Model.create(name: "Twenty", age: 20)
+
+      Model.where({"age" => 10...20}).to_a.should eq([model])
+    end
+
+    it "accepts exclusive finite ranges as values" do
+      Model.create(name: "Five", age: 5)
+      model = Model.create(name: "Ten", age: 10)
+      Model.create(name: "Twenty", age: 20)
+
+      Model.where(age: 10...20).to_a.should eq([model])
+    end
+
+    it "accepts endless ranges as values" do
+      Model.create(name: "Ten", age: 10)
+      model1 = Model.create(name: "Twenty", age: 20)
+      model2 = Model.create(name: "Thirty", age: 30)
+
+      Model.where(age: 20..).order_by_age!.to_a.should eq([model1, model2])
+    end
+
+    it "accepts inclusive beginless ranges as values" do
+      model1 = Model.create(name: "Ten", age: 10)
+      model2 = Model.create(name: "Twenty", age: 20)
+      Model.create(name: "Thirty", age: 30)
+
+      Model.where(age: ..20).order_by_age!.to_a.should eq([model1, model2])
+    end
+
+    it "accepts exclusive beginless ranges as values" do
+      model = Model.create(name: "Ten", age: 10)
+      Model.create(name: "Twenty", age: 20)
+
+      Model.where(age: ...20).to_a.should eq([model])
+    end
   end
 end

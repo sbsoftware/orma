@@ -20,6 +20,8 @@ abstract class Orma::Query
     def add_where_condition(name, value)
       @sql << (@has_where_condition ? " AND " : " WHERE ")
       @has_where_condition = true
+      return add_range_where_condition(name, value) if value.is_a?(Range)
+
       @sql << name
       value.sql_eq_operator(@sql)
       # Arrays expand to one placeholder per item, while nil is rendered as a SQL literal.
@@ -60,6 +62,35 @@ abstract class Orma::Query
     private def add_parameter(value : DB::Any)
       @sql << @db_adapter.parameter_placeholder(args)
       args << value
+    end
+
+    private def add_range_where_condition(name, value : Range)
+      range_begin = value.begin
+      range_end = value.end
+
+      if range_begin.nil?
+        @sql << name
+        @sql << (value.exclusive? ? "<" : "<=")
+        add_parameter(range_end.to_db_param)
+      elsif range_end.nil?
+        @sql << name
+        @sql << ">="
+        add_parameter(range_begin.to_db_param)
+      elsif value.exclusive?
+        @sql << name
+        @sql << ">="
+        add_parameter(range_begin.to_db_param)
+        @sql << " AND "
+        @sql << name
+        @sql << "<"
+        add_parameter(range_end.to_db_param)
+      else
+        @sql << name
+        @sql << " BETWEEN "
+        add_parameter(range_begin.to_db_param)
+        @sql << " AND "
+        add_parameter(range_end.to_db_param)
+      end
     end
   end
 

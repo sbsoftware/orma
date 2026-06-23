@@ -166,7 +166,7 @@ module Orma
 
       class Query < ::Orma::Query
         @[::Orma::Query::WhereCondition]
-        @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | ::Orma::Attribute({{col_type}}) | Array(::Orma::Attribute({{col_type}})))?
+        @{{type_decl.var}}_condition : ::Orma::Query::Condition({{type_decl.type}}? | Array({{type_decl.type}}) | Range({{col_type}}, {{col_type}}) | Range({{col_type}}, Nil) | Range(Nil, {{col_type}}) | ::Orma::Attribute({{col_type}}) | Array(::Orma::Attribute({{col_type}})))?
 
         def order_by_{{type_decl.var}}!(direction : ::Orma::Query::Direction = :asc)
           @orderings << ::Orma::Query::Ordering.new({{type_decl.var.stringify}}, direction)
