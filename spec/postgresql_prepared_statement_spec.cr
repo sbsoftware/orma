@@ -117,6 +117,42 @@ module Orma::PostgresqlPreparedStatementSpec
         end
       end
 
+      it "uses numbered placeholders for inclusive finite ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age BETWEEN $1 AND $2", db_args(1, 10))) do
+          Record.where(age: 1..10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for ranges with Orma::Attribute bounds" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age BETWEEN $1 AND $2", db_args(1, 10))) do
+          Record.where(age: Record.age(1)..Record.age(10)).to_a
+        end
+      end
+
+      it "uses numbered placeholders for exclusive finite ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age>=$1 AND age<$2", db_args(1, 10))) do
+          Record.where(age: 1...10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for endless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age>=$1", db_args(1))) do
+          Record.where(age: 1..).to_a
+        end
+      end
+
+      it "uses numbered placeholders for inclusive beginless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age<=$1", db_args(10))) do
+          Record.where(age: ..10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for exclusive beginless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age<$1", db_args(10))) do
+          Record.where(age: ...10).to_a
+        end
+      end
+
       it "continues after conditions without placeholders" do
         expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name IS NULL AND age=$1", db_args(1))) do
           Record.where(name: nil, age: 1).to_a

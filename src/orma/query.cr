@@ -20,22 +20,7 @@ abstract class Orma::Query
     def add_where_condition(name, value)
       @sql << (@has_where_condition ? " AND " : " WHERE ")
       @has_where_condition = true
-      @sql << name
-      value.sql_eq_operator(@sql)
-      # Arrays expand to one placeholder per item, while nil is rendered as a SQL literal.
-      case value
-      when Array
-        @sql << "("
-        value.each_with_index do |item, index|
-          @sql << "," unless index == 0
-          add_parameter(item.to_db_param)
-        end
-        @sql << ")"
-      when Nil
-        value.to_sql_value(@sql)
-      else
-        add_parameter(value.to_db_param)
-      end
+      value.to_sql_where_condition(@sql, @db_adapter, args, name)
     end
 
     def add_order_clause(orderings)
