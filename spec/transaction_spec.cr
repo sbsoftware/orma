@@ -70,4 +70,48 @@ module Orma::TransactionSpec
       (value + 1).should eq(2)
     end
   end
+
+  describe "#with_lock" do
+    before_each do
+      TxRecord.continuous_migration!
+    end
+
+    after_each do
+      Orma.reset_db!
+    end
+
+    it "runs the block inside a transaction after locking and reloading the record" do
+      record = TxRecord.create(name: "pre")
+      stale = TxRecord.find(record.id)
+      record.update(name: "fresh")
+
+      stale.with_lock do
+        stale.name.should eq("fresh")
+        stale.update(name: "inside")
+      end
+
+      TxRecord.find(record.id).name.should eq("inside")
+    end
+
+    it "rolls back writes from the block when it raises" do
+      record = TxRecord.create(name: "pre")
+
+      expect_raises(Exception, "boom") do
+        record.with_lock do
+          record.update(name: "inside")
+          raise "boom"
+        end
+      end
+
+      TxRecord.find(record.id).name.should eq("pre")
+    end
+
+    it "returns the block value without a nilable type" do
+      record = TxRecord.create(name: "pre")
+
+      value = record.with_lock { 1 }
+
+      (value + 1).should eq(2)
+    end
+  end
 end

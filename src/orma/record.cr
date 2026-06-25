@@ -472,6 +472,30 @@ module Orma
       self.class.transaction(&block)
     end
 
+    def with_lock(&block : -> T) : T forall T
+      transaction do
+        lock_record!
+        block.call
+      end
+    end
+
+    private def lock_record!
+      args = [] of DB::Any
+      sql = String.build do |qry|
+        qry << "SELECT * FROM #{table_name} WHERE id="
+        db_adapter.add_parameter_placeholder(qry, args, id.value)
+        qry << " LIMIT 1"
+        db_adapter.add_lock_clause(qry)
+      end
+      begin
+        db.query_one(sql, args: args) do |res|
+          load_attributes_from_result_set(res)
+        end
+      rescue err
+        raise DBError.new(err, sql)
+      end
+    end
+
     # Used by `#reload` to refresh attributes in-place on an existing record instance.
     private def load_attributes_from_result_set(db_res : DB::ResultSet)
       {% begin %}
