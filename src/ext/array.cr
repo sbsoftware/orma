@@ -16,11 +16,12 @@ class Array(T)
     io << " IN "
   end
 
-  def to_prepared_where_condition(io : IO, args : Array(DB::Any), db_adapter : Orma::DbAdapters::Base)
+  def to_sql_where_condition(io : IO, db_adapter, args, name)
+    io << name
     sql_eq_operator(io)
-
     io << "("
-    join(io, ",") do |item, io|
+    each_with_index do |item, index|
+      io << "," unless index == 0
       db_adapter.add_parameter_placeholder(io, args, item.to_db_param)
     end
     io << ")"

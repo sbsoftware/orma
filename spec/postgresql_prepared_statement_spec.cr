@@ -61,23 +61,6 @@ module Orma::PostgresqlPreparedStatementSpec
     end
   end
 
-  class UnsavedRecord < TestRecord
-    id_column id : Int64?
-    column name : String
-    column age : Int32
-
-    @@db = FakeDB.new
-    @@db_adapter = Orma::DbAdapters::Postgresql.new(@@db)
-
-    def self.db
-      @@db
-    end
-
-    def self.db_adapter
-      @@db_adapter
-    end
-  end
-
   private def self.db_args(*values)
     values.to_a.map(&.as(DB::Any))
   end
@@ -122,6 +105,60 @@ module Orma::PostgresqlPreparedStatementSpec
         end
       end
 
+      it "handles empty list conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE id IN ()", db_args)) do
+          Record.where(id: [] of Int64).to_a
+        end
+      end
+
+      it "handles nil conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name IS NULL", db_args)) do
+          Record.where(name: nil).to_a
+        end
+      end
+
+      it "uses numbered placeholders for inclusive finite ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age BETWEEN $1 AND $2", db_args(1, 10))) do
+          Record.where(age: 1..10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for ranges with Orma::Attribute bounds" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age BETWEEN $1 AND $2", db_args(1, 10))) do
+          Record.where(age: Record.age(1)..Record.age(10)).to_a
+        end
+      end
+
+      it "uses numbered placeholders for exclusive finite ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age>=$1 AND age<$2", db_args(1, 10))) do
+          Record.where(age: 1...10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for endless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age>=$1", db_args(1))) do
+          Record.where(age: 1..).to_a
+        end
+      end
+
+      it "uses numbered placeholders for inclusive beginless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age<=$1", db_args(10))) do
+          Record.where(age: ..10).to_a
+        end
+      end
+
+      it "uses numbered placeholders for exclusive beginless ranges" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE age<$1", db_args(10))) do
+          Record.where(age: ...10).to_a
+        end
+      end
+
+      it "continues after conditions without placeholders" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name IS NULL AND age=$1", db_args(1))) do
+          Record.where(name: nil, age: 1).to_a
+        end
+      end
+
       it "continues numbering through limits" do
         expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name=$1 LIMIT $2", db_args("test", 5_i64))) do
           Record.where(name: "test").limit(5).to_a
@@ -141,16 +178,6 @@ module Orma::PostgresqlPreparedStatementSpec
       it "uses numbered placeholders and returns the inserted id" do
         expect_db_call(FakeDB::Call.new(:query_one, "INSERT INTO orma_postgresql_prepared_statement_spec_records(name, age) VALUES ($1, $2) RETURNING id::bigint", db_args("Blah", 1))) do
           Record.create(name: "Blah", age: 1)
-        end
-      end
-    end
-
-    describe "via #save on a new record" do
-      it "uses numbered placeholders and returns the inserted id" do
-        rec = UnsavedRecord.new(name: "Foo", age: 1)
-
-        expect_db_call(FakeDB::Call.new(:query_one, "INSERT INTO orma_postgresql_prepared_statement_spec_unsaved_records(name, age) VALUES ($1, $2) RETURNING id::bigint", db_args("Foo", 1))) do
-          rec.save
         end
       end
     end

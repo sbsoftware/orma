@@ -12,7 +12,8 @@ struct Nil
     io << " IS "
   end
 
-  def to_prepared_where_condition(io : IO, _args : Array(DB::Any))
+  def to_sql_where_condition(io : IO, _db_adapter, _args, name)
+    io << name
     sql_eq_operator(io)
     to_sql_value(io)
   end

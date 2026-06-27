@@ -2,6 +2,8 @@ require "./base"
 
 # :nodoc:
 class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
+  DEFAULT_CONNECTION_STRING_OPTIONS = {"journal_mode" => "wal", "synchronous" => "normal", "busy_timeout" => "5000"}
+
   struct ColumnInfo
     getter name : String
     getter type : String
@@ -17,6 +19,14 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
       @dflt_value = res.read(String?)
       @pk = res.read(Int64) > 0
     end
+  end
+
+  def self.add_default_connection_string_options(connection_string : String) : String
+    uri = URI.parse(connection_string)
+    params = uri.query_params
+    DEFAULT_CONNECTION_STRING_OPTIONS.each { |key, value| params[key] = value unless params.has_key?(key) }
+    uri.query = params.to_s
+    uri.to_s
   end
 
   def db_type_for(klass)

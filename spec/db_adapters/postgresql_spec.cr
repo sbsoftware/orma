@@ -17,4 +17,8 @@ describe Orma::DbAdapters::Postgresql do
   it "uses Postgres binary storage for byte slices" do
     adapter.db_type_for(Slice(UInt8)).should eq("BYTEA")
   end
+
+  it "adds a FOR UPDATE clause for row locks" do
+    String.build { |io| adapter.add_lock_clause(io) }.should eq(" FOR UPDATE")
+  end
 end

@@ -11,6 +11,10 @@ abstract class Orma::DbAdapters::Base
 
   def initialize(@db); end
 
+  def self.add_default_connection_string_options(connection_string : String) : String
+    connection_string
+  end
+
   def parameter_placeholder(args : Array(DB::Any))
     "?"
   end
@@ -18,6 +22,9 @@ abstract class Orma::DbAdapters::Base
   def add_parameter_placeholder(io : IO, args : Array(DB::Any), value : DB::Any)
     io << parameter_placeholder(args)
     args << value
+  end
+
+  def add_lock_clause(io : IO)
   end
 
   def insert_and_return_id(query : String, args : Array(DB::Any), id_column : String) : Int64
