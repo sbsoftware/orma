@@ -24,6 +24,9 @@ abstract class Orma::DbAdapters::Base
     args << value
   end
 
+  def add_lock_clause(io : IO)
+  end
+
   def insert_and_return_id(query : String, args : Array(DB::Any), id_column : String) : Int64
     db.exec(query, args: args).last_insert_id
   end

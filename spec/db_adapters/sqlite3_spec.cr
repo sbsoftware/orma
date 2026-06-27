@@ -1,6 +1,13 @@
 require "../spec_helper"
 
 describe Orma::DbAdapters::Sqlite3 do
+  db = uninitialized DB::Database
+  adapter = Orma::DbAdapters::Sqlite3.new(db)
+
+  it "does not add a lock clause because SQLite locks through the transaction" do
+    String.build { |io| adapter.add_lock_clause(io) }.should eq("")
+  end
+
   describe ".add_default_connection_string_options" do
     it "adds default options missing from the connection string" do
       connection_string = Orma::DbAdapters::Sqlite3.add_default_connection_string_options("sqlite3:%3Amemory%3A?max_pool_size=1")
