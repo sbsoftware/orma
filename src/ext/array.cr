@@ -16,14 +16,18 @@ class Array(T)
     io << " IN "
   end
 
-  def to_sql_where_condition(io : IO, db_adapter, args, name)
-    io << name
+  def to_sql_where_condition(io : IO)
     sql_eq_operator(io)
-    io << "("
+    to_sql_value(io)
+  end
+
+  def to_sql_where_condition(query)
+    sql_eq_operator(query)
+    query << "("
     each_with_index do |item, index|
-      io << "," unless index == 0
-      db_adapter.add_parameter_placeholder(io, args, item.to_db_param)
+      query << "," unless index == 0
+      query.add_parameter(item.to_db_param)
     end
-    io << ")"
+    query << ")"
   end
 end
