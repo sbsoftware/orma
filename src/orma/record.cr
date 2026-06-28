@@ -1,4 +1,5 @@
 require "db"
+require "log"
 require "../open_telemetry_instrumentation"
 require "./db_error"
 require "./db_adapters/*"
@@ -9,6 +10,8 @@ require "digest/sha256"
 require "crypto/bcrypt/password"
 
 module Orma
+  Log = ::Log.for("orma")
+
   @@db : DB::Database?
   @@db_connection_string : String?
   @@db_adapter : DbAdapters::Base?
@@ -119,8 +122,16 @@ module Orma
 
     macro column(type_decl, unique = false)
       @[Column]
-      {% if unique %}
+      {% if unique == true %}
         @[Unique]
+      {% elsif unique %}
+        {% unless unique.is_a?(NamedTupleLiteral) && unique[:scope] %}
+          {% type_decl.raise("unique must be true or a NamedTuple with a scope") %}
+        {% end %}
+        {% unless unique[:scope].is_a?(ArrayLiteral) || unique[:scope].is_a?(TupleLiteral) %}
+          {% type_decl.raise("unique scope must be an Array or Tuple of symbols") %}
+        {% end %}
+        @[Unique(scope: {{unique[:scope]}})]
       {% end %}
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -721,9 +732,32 @@ module Orma
 
       {% for ivar in @type.instance_vars %}
         {% if ivar.annotation(Column) && ivar.annotation(Unique) && !ivar.annotation(Deprecated) %}
-          index_name = "idx_#{table_name}_{{ivar}}"
+          {% scope = ivar.annotation(Unique)[:scope] %}
+          {% unique_columns = [ivar.name.stringify] %}
+          {% if scope %}
+            {% for scoped_column in scope %}
+              {% unless scoped_column.is_a?(SymbolLiteral) %}
+                {% ivar.raise("unique scope values must be symbols") %}
+              {% end %}
+              {% scoped_column_name = scoped_column.id.stringify %}
+              {% unless @type.instance_vars.any? { |var| (var.annotation(Column) || var.annotation(IdColumn)) && !var.annotation(Deprecated) && var.name.stringify == scoped_column_name } %}
+                {% ivar.raise("unique scope column `#{scoped_column_name}` does not exist on #{@type}") %}
+              {% end %}
+              {% unique_columns << scoped_column_name %}
+            {% end %}
+          {% end %}
+          index_name = "idx_#{table_name}_{{unique_columns.join("_").id}}"
           unless index_names.includes?(index_name)
-            db.exec "CREATE UNIQUE INDEX #{index_name} ON #{table_name} ({{ivar}})"
+            sql = db_adapter.create_unique_index_sql(table_name, index_name, [{{unique_columns.map { |column| column.stringify }.splat}}] of String)
+            begin
+              db.exec sql
+            rescue err
+              if db_adapter.unique_index_data_violation?(err)
+                Orma::Log.warn(exception: err) { "Could not create unique index #{index_name} on #{table_name}; existing duplicate data violates the new constraint. Fix the data manually and rerun continuous migration." }
+              else
+                raise err
+              end
+            end
           end
         {% end %}
       {% end %}
