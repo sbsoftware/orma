@@ -6,7 +6,6 @@ abstract class Orma::Query
 
   private class Statement
     getter args = [] of DB::Any
-    @where_condition_name : String?
 
     def initialize(@db_adapter : Orma::DbAdapters::Base, select_clause, table_name)
       @sql = IO::Memory.new
@@ -21,12 +20,7 @@ abstract class Orma::Query
     def add_where_condition(name, value)
       @sql << (@has_where_condition ? " AND " : " WHERE ")
       @has_where_condition = true
-      # Some values, such as exclusive ranges, need to emit the same column more than once while still letting the statement own parameter placeholders.
-      @where_condition_name = name
-      add_where_condition_name
-      value.to_sql_where_condition(self)
-    ensure
-      @where_condition_name = nil
+      add_where_condition_predicates(name, value.to_sql_where_condition)
     end
 
     def add_order_clause(orderings)
@@ -48,17 +42,30 @@ abstract class Orma::Query
       add_parameter(offset)
     end
 
-    def <<(value)
-      @sql << value
-    end
-
-    def add_where_condition_name
-      @sql << @where_condition_name.not_nil!
-    end
-
-    def add_parameter(value : DB::Any)
+    private def add_parameter(value : DB::Any)
       @sql << @db_adapter.parameter_placeholder(args)
       args << value
+    end
+
+    private def add_where_condition_predicates(name, condition)
+      condition.predicates.each_with_index do |predicate, index|
+        @sql << condition.combinator unless index == 0
+        @sql << name
+        @sql << predicate.operator
+        add_where_condition_values(predicate)
+      end
+    end
+
+    private def add_where_condition_values(predicate)
+      @sql << "(" if predicate.wrap_values
+      predicate.values.join(@sql, predicate.value_separator) do |value, io|
+        if value.parameterized?
+          add_parameter(value.parameter.not_nil!)
+        else
+          io << value.sql.not_nil!
+        end
+      end
+      @sql << ")" if predicate.wrap_values
     end
   end
 

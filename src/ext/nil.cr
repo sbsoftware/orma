@@ -8,11 +8,7 @@ struct Nil
     io << "NULL"
   end
 
-  def sql_eq_operator(io : IO)
-    io << " IS "
-  end
-
-  def to_sql_where_condition(query)
-    query << " IS NULL"
+  def to_sql_where_condition
+    Orma::WhereCondition.sql(" IS ", "NULL")
   end
 end
