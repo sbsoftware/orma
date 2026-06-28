@@ -12,18 +12,7 @@ class Array(T)
     io << ")"
   end
 
-  def sql_eq_operator(io)
-    io << " IN "
-  end
-
-  def to_sql_where_condition(io : IO, db_adapter, args, name)
-    io << name
-    sql_eq_operator(io)
-    io << "("
-    each_with_index do |item, index|
-      io << "," unless index == 0
-      db_adapter.add_parameter_placeholder(io, args, item.to_db_param)
-    end
-    io << ")"
+  def to_sql_where_condition
+    Orma::WhereCondition.new([Orma::WhereCondition::Predicate.new(" IN ", map { |item| Orma::WhereCondition::Value.parameter(item.to_db_param) }, ",", true)])
   end
 end

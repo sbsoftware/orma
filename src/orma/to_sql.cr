@@ -1,4 +1,5 @@
 require "db"
+require "./where_condition"
 
 module Orma
   # :nodoc:
@@ -7,21 +8,8 @@ module Orma
       self.as(DB::Any)
     end
 
-    def to_sql_where_condition(io : IO)
-      sql_eq_operator(io)
-      to_sql_value(io)
-    end
-
-    def to_sql_where_condition(io : IO, db_adapter, args, name)
-      io << name
-      sql_eq_operator(io)
-      db_adapter.add_parameter_placeholder(io, args, to_db_param)
-    end
-
-    def to_sql_where_condition : String
-      String.build do |io|
-        to_sql_where_condition(io)
-      end
+    def to_sql_where_condition
+      WhereCondition.parameter("=", to_db_param)
     end
 
     def to_sql_update_value(io : IO)
@@ -50,16 +38,6 @@ module Orma
     def to_sql_value : String
       String.build do |io|
         to_sql_value(io)
-      end
-    end
-
-    def sql_eq_operator(io : IO)
-      io << "="
-    end
-
-    def sql_eq_operator : String
-      String.build do |io|
-        sql_eq_operator(io)
       end
     end
   end
