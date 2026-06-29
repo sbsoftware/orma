@@ -26,6 +26,12 @@ module Orma::UniqueSpec
     column slug : String, unique: {scope: ["account_id"]}
   end
 
+  class MacroIdScopedRecord < TestRecord
+    id_column id : Int64
+    column account_id : Int64
+    column slug : String, unique: {scope: [account_id]}
+  end
+
   describe "MyRecord#save" do
     before_all do
       MyRecord.continuous_migration!
@@ -85,6 +91,15 @@ module Orma::UniqueSpec
 
       expect_raises(Orma::DBError) do
         StringScopedRecord.create(account_id: 1_i64, slug: "welcome")
+      end
+    end
+
+    it "accepts macro ids directly" do
+      MacroIdScopedRecord.continuous_migration!
+      MacroIdScopedRecord.create(account_id: 1_i64, slug: "welcome")
+
+      expect_raises(Orma::DBError) do
+        MacroIdScopedRecord.create(account_id: 1_i64, slug: "welcome")
       end
     end
   end
