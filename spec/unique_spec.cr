@@ -20,6 +20,12 @@ module Orma::UniqueSpec
     column slug : String, unique: {scope: [:tenant_id]}
   end
 
+  class StringScopedRecord < TestRecord
+    id_column id : Int64
+    column account_id : Int64
+    column slug : String, unique: {scope: ["account_id"]}
+  end
+
   describe "MyRecord#save" do
     before_all do
       MyRecord.continuous_migration!
@@ -69,6 +75,17 @@ module Orma::UniqueSpec
       DuplicateBackfillRecord.db.exec "INSERT INTO #{DuplicateBackfillRecord.table_name}(id, tenant_id, slug) VALUES (2, 1, 'duplicate')"
 
       DuplicateBackfillRecord.continuous_migration!
+    end
+  end
+
+  describe "scope column names" do
+    it "accepts non-symbol literals that normalize to a column name" do
+      StringScopedRecord.continuous_migration!
+      StringScopedRecord.create(account_id: 1_i64, slug: "welcome")
+
+      expect_raises(Orma::DBError) do
+        StringScopedRecord.create(account_id: 1_i64, slug: "welcome")
+      end
     end
   end
 end

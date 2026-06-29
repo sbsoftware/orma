@@ -129,7 +129,7 @@ module Orma
           {% type_decl.raise("unique must be true or a NamedTuple with a scope") %}
         {% end %}
         {% unless unique[:scope].is_a?(ArrayLiteral) || unique[:scope].is_a?(TupleLiteral) %}
-          {% type_decl.raise("unique scope must be an Array or Tuple of symbols") %}
+          {% type_decl.raise("unique scope must be an Array or Tuple of column names") %}
         {% end %}
         @[Unique(scope: {{unique[:scope]}})]
       {% end %}
@@ -736,9 +736,6 @@ module Orma
           {% unique_columns = [ivar.name.stringify] %}
           {% if scope %}
             {% for scoped_column in scope %}
-              {% unless scoped_column.is_a?(SymbolLiteral) %}
-                {% ivar.raise("unique scope values must be symbols") %}
-              {% end %}
               {% scoped_column_name = scoped_column.id.stringify %}
               {% unless @type.instance_vars.any? { |var| (var.annotation(Column) || var.annotation(IdColumn)) && !var.annotation(Deprecated) && var.name.stringify == scoped_column_name } %}
                 {% ivar.raise("unique scope column `#{scoped_column_name}` does not exist on #{@type}") %}
