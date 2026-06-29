@@ -72,4 +72,11 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
       end
     end
   end
+
+  def unique_index_data_violation?(error : Exception) : Bool
+    message = error.message
+    return false unless message
+
+    message.includes?("could not create unique index") && message.includes?("duplicated")
+  end
 end
