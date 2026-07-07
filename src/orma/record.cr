@@ -333,6 +333,9 @@ module Orma
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
                 %value{model_col.id} = db_res.read({{read_type}})
             {% end %}
+            else
+              # ResultSet reads are positional, so unknown columns still need to be consumed to keep following modeled columns aligned.
+              db_res.read
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
@@ -522,6 +525,9 @@ module Orma
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
                 %value{model_col.id} = db_res.read({{read_type}})
             {% end %}
+            else
+              # ResultSet reads are positional, so unknown columns still need to be consumed to keep following modeled columns aligned.
+              db_res.read
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
