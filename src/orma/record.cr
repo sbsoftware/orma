@@ -114,7 +114,7 @@ module Orma
       {% if type_decl.type.resolve.nilable? %}
         {% type_decl.raise("id_column must not be nilable") %}
       {% end %}
-      ID_VALUE_TYPE = {{type_decl.type}}
+      alias ID_VALUE_TYPE = {{type_decl.type}}
       @[IdColumn]
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -150,14 +150,20 @@ module Orma
     end
 
     # :nodoc:
-    macro _column(type_decl)
-      {% if type_decl.type.resolve.nilable? %}
+    macro _column(type_decl, association_type = nil, association_nilable = nil)
+      {% type_decl = type_decl.expressions.first if type_decl.is_a?(Expressions) %}
+      {% if association_type %}
+        {% col_type = association_type %}
+        {% nilable = association_nilable %}
+      {% elsif type_decl.type.resolve.nilable? %}
         {% col_type = type_decl.type.resolve.union_types.find { |t| t != Nil } %}
+        {% nilable = true %}
       {% else %}
         {% col_type = type_decl.type %}
+        {% nilable = false %}
       {% end %}
 
-      {% if type_decl.type.resolve.nilable? %}
+      {% if nilable %}
         {% unless type_decl.value.nil? %}
           getter {{type_decl.var}} : ::Orma::Attribute({{col_type}})? = ::Orma::Attribute({{col_type}}).new(::{{@type.resolve}}, {{type_decl.var.symbolize}}, {{type_decl.value}})
         {% else %}
@@ -256,16 +262,13 @@ module Orma
     #   belongs_to Comment
     #   # => adds `comment_id` column + `#comment` accessor
     macro belongs_to(klass, required = true)
-      {% assoc_name = klass.resolve.name.underscore.gsub(/::/, "_") %}
-      {% fk_name = "#{assoc_name}_id" %}
-
-      {% id_type = klass.resolve.constant("ID_VALUE_TYPE") %}
-      {% unless id_type %}
-        {% raise "No `id_column` found on #{klass} for belongs_to association on #{@type} (expected #{klass}::ID_VALUE_TYPE)" %}
-      {% end %}
+      {% assoc_name = klass.stringify.gsub(/^::/, "").underscore.gsub(/::/, "_") %}
+      {% fk_name = assoc_name + "_id" %}
+      @[Column]
 
       {% if required == false %}
-        column {{fk_name.id}} : {{id_type}}?
+        _column(({{fk_name.id}} : {{klass}}::ID_VALUE_TYPE?), {{klass}}::ID_VALUE_TYPE, true)
+        _define_setter({{fk_name.id}} : {{klass}}::ID_VALUE_TYPE?)
 
         def {{assoc_name.id}} : {{klass}}?
           if _id = {{fk_name.id}}.try(&.value)
@@ -273,7 +276,8 @@ module Orma
           end
         end
       {% else %}
-        column {{fk_name.id}} : {{id_type}}
+        _column(({{fk_name.id}} : {{klass}}::ID_VALUE_TYPE), {{klass}}::ID_VALUE_TYPE, false)
+        _define_setter({{fk_name.id}} : {{klass}}::ID_VALUE_TYPE)
 
         def {{assoc_name.id}} : {{klass}}
           {{klass}}.find({{fk_name.id}}.value)
