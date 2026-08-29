@@ -19,6 +19,7 @@ module Orma::PasswordColumnSpec
       password = "test"
       model = MyModel.create(password: password)
       model.password_hash.should_not eq(password)
+      model.password_hash.should eq(MyModel.find(model.id).password_hash)
     end
 
     it "should correctly verify the password" do

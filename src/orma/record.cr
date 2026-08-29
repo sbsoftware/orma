@@ -289,9 +289,9 @@ module Orma
         args = args.merge(updated_at: args[:updated_at]? || Time.utc)
       {% end %}
 
-      args = args.merge(id: insert_record(**args))
-
-      new(**args)
+      record = new(**args.merge(id: {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(0)))
+      record.id = record.insert_record
+      record
     end
 
     def initialize(**args : **T) forall T
@@ -596,7 +596,7 @@ module Orma
       end
     end
 
-    private def insert_record
+    protected def insert_record
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
         self.created_at ||= Time.utc
       {% end %}
@@ -617,74 +617,10 @@ module Orma
         qry << ")"
       end
       begin
-        db_adapter.insert_and_return_id(query, args, self.class.id_column_name)
+        {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(db_adapter.insert_and_return_id(query, args, self.class.id_column_name))
       rescue err
         raise DBError.new(err, query)
       end
-    end
-
-    # :nodoc:
-    private def self.insert_record(**args : **T) forall T
-      {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
-        {% unless T[ivar.name.id.symbolize] %}
-          args = args.merge({{ivar.name.id}}: {{ivar.default_value}}.value)
-        {% end %}
-      {% end %}
-
-      args_values = [] of DB::Any
-      query = String.build do |qry|
-        qry << "INSERT INTO "
-        qry << table_name
-        qry << "("
-        args.keys.join(qry, ", ") do |key, io|
-          io << get_setter(key)
-        end
-        qry << ") VALUES ("
-        args.to_a.join(qry, ", ") do |(key, value), io|
-          db_adapter.add_parameter_placeholder(io, args_values, transform_in(key, value).to_db_param)
-        end
-        qry << ")"
-      end
-      begin
-        record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
-
-        # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first %}
-          {{id_type}}.new(record_id)
-        {% else %}
-          {% raise "No `id` column defined on #{@type}" %}
-        {% end %}
-      rescue err
-        raise DBError.new(err, query)
-      end
-    end
-
-    # :nodoc:
-    private def self.get_setter(key)
-      {% begin %}
-        case key
-        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:setter] != nil } %}
-        when {{ivar.annotation(Column)[:setter].id.symbolize}}
-          {{ivar.name.id.symbolize}}
-        {% end %}
-        else
-          key
-        end
-      {% end %}
-    end
-
-    # :nodoc:
-    private def self.transform_in(key, value)
-      {% begin %}
-        case key
-        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:transform_in] != nil } %}
-        when {{(ivar.annotation(Column)[:setter] || ivar.name).id.symbolize}}
-          {{ivar.annotation(Column)[:transform_in].id}}(value.as({{ivar.type.union_types.find { |t| t != Nil }.type_vars.first}}{{ "?".id if ivar.type.nilable? }}))
-        {% end %}
-        else
-          value
-        end
-      {% end %}
     end
 
     # :nodoc:
