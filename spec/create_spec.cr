@@ -13,6 +13,10 @@ module Orma::CreateSpec
     deprecated_column legacy_info : String?
     column created_at : Time
     column updated_at : Time
+
+    def insert_again
+      persist_new_record
+    end
   end
 
   describe "MyRecord.create" do
@@ -75,6 +79,14 @@ module Orma::CreateSpec
 
       [rec, MyRecord.find(rec.id)].each do |record|
         record.verify_password("test").should be_true
+      end
+    end
+
+    it "doesn't allow a created record to be inserted again" do
+      rec = MyRecord.create(name: "Once", age: 1)
+
+      expect_raises(Exception, "Can not insert a record that already has an id") do
+        rec.insert_again
       end
     end
   end

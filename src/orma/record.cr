@@ -290,8 +290,7 @@ module Orma
       {% end %}
 
       record = new(**args.merge(id: {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(0)))
-      record.id = record.insert_record
-      record
+      record.persist_new_record
     end
 
     def initialize(**args : **T) forall T
@@ -596,7 +595,17 @@ module Orma
       end
     end
 
-    protected def insert_record
+    # Keeps the insertion entrypoint inaccessible to callers while allowing the class factory to finalize a new instance.
+    protected def persist_new_record
+      unless id.value == {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(0)
+        raise "Can not insert a record that already has an id"
+      end
+
+      self.id = insert_record
+      self
+    end
+
+    private def insert_record
       {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
         self.created_at ||= Time.utc
       {% end %}
