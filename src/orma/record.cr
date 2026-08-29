@@ -289,29 +289,34 @@ module Orma
         args = args.merge(updated_at: args[:updated_at]? || Time.utc)
       {% end %}
 
-      record = new(**args.merge(id: {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(0)))
-      record.persist_new_record
+      args = transform_in(**args)
+      new(**args.merge(id: insert_record(**args)))
     end
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
         {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key) } %}
-          {% if !ivar.type.nilable? && T[key].nilable? %}
-            {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
-          {% end %}
-
-          %attr{ivar} = args[{{key.symbolize}}]
-          {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-            %attr{ivar} = self.class.{{transform_in}}(%attr{ivar})
-          {% end %}
-
-          unless %attr{ivar}.nil?
-            @{{ivar}} = ::Orma::Attribute.new(self.class, {{key.symbolize}}, %attr{ivar})
-          else
-            {% unless ivar.type.nilable? || ivar.has_default_value? %}
-              raise "{{key}} can not be nil"
+          {% ann = ivar.annotation(Column) %}
+          {% if ann && ann[:setter] && ivar.id == key && T.keys.map(&.id).includes?(ann[:setter].id) %}
+            # The public setter value takes precedence over an internal column value.
+          {% else %}
+            {% if !ivar.type.nilable? && T[key].nilable? %}
+              {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
             {% end %}
-          end
+
+            %attr{ivar} = args[{{key.symbolize}}]
+            {% if ann && ann[:setter].id == key && (transform_in = ann[:transform_in]) %}
+              %attr{ivar} = self.class.{{transform_in}}(%attr{ivar})
+            {% end %}
+
+            unless %attr{ivar}.nil?
+              @{{ivar}} = ::Orma::Attribute.new(self.class, {{ivar.name.symbolize}}, %attr{ivar})
+            else
+              {% unless ivar.type.nilable? || ivar.has_default_value? %}
+                raise "{{key}} can not be nil"
+              {% end %}
+            end
+          {% end %}
         {% else %}
           {% @type.raise "#{key} is not a writable property of #{@type}" %}
         {% end %}
@@ -595,41 +600,50 @@ module Orma
       end
     end
 
-    # Keeps the insertion entrypoint inaccessible to callers while allowing the class factory to finalize a new instance.
-    protected def persist_new_record
-      unless id.value == {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(0)
-        raise "Can not insert a record that already has an id"
-      end
-
-      self.id = insert_record
-      self
-    end
-
-    private def insert_record
-      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
-        self.created_at ||= Time.utc
-      {% end %}
-      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
-        self.updated_at ||= Time.utc
+    # :nodoc:
+    private def self.insert_record(**args : **T) forall T
+      {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
+        {% unless T[ivar.name.id.symbolize] %}
+          args = args.merge({{ivar.name.id}}: {{ivar.default_value}}.value)
+        {% end %}
       {% end %}
 
-      args = [] of DB::Any
+      args_values = [] of DB::Any
       query = String.build do |qry|
         qry << "INSERT INTO "
         qry << table_name
         qry << "("
-        column_values.keys.join(qry, ", ")
+        args.keys.join(qry, ", ")
         qry << ") VALUES ("
-        column_values.values.join(qry, ", ") do |v, io|
-          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
+        args.values.join(qry, ", ") do |value, io|
+          db_adapter.add_parameter_placeholder(io, args_values, value.to_db_param)
         end
         qry << ")"
       end
       begin
-        {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(db_adapter.insert_and_return_id(query, args, self.class.id_column_name))
+        record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
+        {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(record_id)
       rescue err
         raise DBError.new(err, query)
       end
+    end
+
+    # Converts public setter arguments to their stored column names and values before insertion and initialization.
+    private def self.transform_in(**args : **T) forall T
+      {% begin %}
+        {% transformed_args = [] of ASTNode %}
+        {% for key in T.keys.map(&.id) %}
+          {% ivar = @type.instance_vars.find { |iv| iv.annotation(Column) && (iv.id == key || iv.annotation(Column)[:setter].id == key) } %}
+          {% ann = ivar && ivar.annotation(Column) %}
+          {% if ann && ann[:setter] && ivar.id == key && T.keys.map(&.id).includes?(ann[:setter].id) %}
+          {% elsif ann && ann[:setter].id == key && (transform = ann[:transform_in]) %}
+            {% transformed_args << "#{ivar.name}: #{transform.id}(args[#{key.symbolize}])".id %}
+          {% else %}
+            {% transformed_args << "#{key}: args[#{key.symbolize}]".id %}
+          {% end %}
+        {% end %}
+        { {{transformed_args.splat}} }
+      {% end %}
     end
 
     # :nodoc:
