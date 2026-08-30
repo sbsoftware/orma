@@ -19,6 +19,7 @@ module Orma::PasswordColumnSpec
       password = "test"
       model = MyModel.create(password: password)
       model.password_hash.should_not eq(password)
+      model.password_hash.should eq(MyModel.find(model.id).password_hash)
     end
 
     it "should correctly verify the password" do
@@ -32,6 +33,20 @@ module Orma::PasswordColumnSpec
     it "never verifies nil as password" do
       model = MyModel.create(password: nil)
       model.verify_password(nil).should be_false
+    end
+
+    it "accepts an internal hash without hashing it again" do
+      password_hash = MyModel.generate_password_hash("test")
+      model = MyModel.new(id: 1, password_hash: password_hash)
+
+      model.password_hash.not_nil!.value.should eq(password_hash)
+    end
+
+    it "prefers the public password when both password forms are given" do
+      model = MyModel.new(id: 1, password_hash: "not a hash", password: "test")
+
+      model.password_hash.not_nil!.value.should_not eq("not a hash")
+      model.verify_password("test").should be_true
     end
   end
 end
