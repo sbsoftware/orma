@@ -15,6 +15,7 @@ module Orma
   @@db : DB::Database?
   @@db_connection_string : String?
   @@db_adapter : DbAdapters::Base?
+  class_property bcrypt_cost : Int32?
 
   def self.db_connection_string
     @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
@@ -213,9 +214,11 @@ module Orma
       end
     end
 
-    macro password_column(name)
+    macro password_column(name, cost = nil)
       @[Column(setter: {{name.id}}, transform_in: generate_{{name.id}}_hash)]
       getter {{name.id}}_hash : ::Orma::Attribute(String)?
+
+      class_property {{name.id}}_bcrypt_cost : Int32?
 
       def verify_{{name.id}}(verified_password : String)
         return false unless %pw_hash = {{name.id}}_hash.try(&.value)
@@ -239,7 +242,11 @@ module Orma
 
         sha256_digest = Digest::SHA256.new
         sha256_digest << input
-        Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
+        if %bcrypt_cost = {{name.id}}_bcrypt_cost || {{cost}} || ::Orma.bcrypt_cost
+          Crypto::Bcrypt::Password.create(sha256_digest.hexfinal, cost: %bcrypt_cost).to_s
+        else
+          Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
+        end
       end
     end
 
