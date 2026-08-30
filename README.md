@@ -73,6 +73,8 @@ Column removal is designed as a staged process. If you want to retire a column, 
 
 After the deprecated column is no longer needed, remove the `deprecated_column` declaration from the model. On the next migration run, Orma will delete the matching `_<name>_deprecated` column. Note that simply removing non-deprecated column definitions will leave them in the database as-is.
 
+Unique indexes can be declared with `unique: true` for a single column or `unique: {scope: [:other_column, :another_column]}` for a composite unique index. When continuous migration adds a unique index to a table with existing duplicate data, the database rejects the index creation; Orma logs a warning and leaves the data unchanged. Fix the duplicate data manually and rerun continuous migration to apply the constraint.
+
 This is currently the built-in path for schema evolution and should be treated with appropriate care, especially in production environments.
 To enable it, set `ENV["ORMA_CONTINUOUS_MIGRATION"]=1`. Opting out of it means you'll have to take care of migrations yourself.
 

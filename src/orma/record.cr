@@ -1,4 +1,5 @@
 require "db"
+require "log"
 require "../open_telemetry_instrumentation"
 require "./db_error"
 require "./db_adapters/*"
@@ -9,9 +10,12 @@ require "digest/sha256"
 require "crypto/bcrypt/password"
 
 module Orma
+  Log = ::Log.for("orma")
+
   @@db : DB::Database?
   @@db_connection_string : String?
   @@db_adapter : DbAdapters::Base?
+  class_property bcrypt_cost : Int32?
 
   def self.db_connection_string
     @@db_connection_string || ENV.fetch("DATABASE_URL", "postgres://postgres@localhost/postgres")
@@ -119,8 +123,16 @@ module Orma
 
     macro column(type_decl, unique = false)
       @[Column]
-      {% if unique %}
+      {% if unique == true %}
         @[Unique]
+      {% elsif unique %}
+        {% unless unique.is_a?(NamedTupleLiteral) && unique[:scope] %}
+          {% type_decl.raise("unique must be true or a NamedTuple with a scope") %}
+        {% end %}
+        {% unless unique[:scope].is_a?(ArrayLiteral) || unique[:scope].is_a?(TupleLiteral) %}
+          {% type_decl.raise("unique scope must be an Array or Tuple of column names") %}
+        {% end %}
+        @[Unique(scope: {{unique[:scope]}})]
       {% end %}
       _column({{type_decl}})
       _define_setter({{type_decl}})
@@ -202,9 +214,11 @@ module Orma
       end
     end
 
-    macro password_column(name)
+    macro password_column(name, cost = nil)
       @[Column(setter: {{name.id}}, transform_in: generate_{{name.id}}_hash)]
       getter {{name.id}}_hash : ::Orma::Attribute(String)?
+
+      class_property {{name.id}}_bcrypt_cost : Int32?
 
       def verify_{{name.id}}(verified_password : String)
         return false unless %pw_hash = {{name.id}}_hash.try(&.value)
@@ -228,7 +242,11 @@ module Orma
 
         sha256_digest = Digest::SHA256.new
         sha256_digest << input
-        Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
+        if %bcrypt_cost = {{name.id}}_bcrypt_cost || {{cost}} || ::Orma.bcrypt_cost
+          Crypto::Bcrypt::Password.create(sha256_digest.hexfinal, cost: %bcrypt_cost).to_s
+        else
+          Crypto::Bcrypt::Password.create(sha256_digest.hexfinal).to_s
+        end
       end
     end
 
@@ -278,30 +296,34 @@ module Orma
         args = args.merge(updated_at: args[:updated_at]? || Time.utc)
       {% end %}
 
-      args = args.merge(id: insert_record(**args))
-
-      new(**args)
+      args = transform_in(**args)
+      new(**args.merge(id: insert_record(**args)))
     end
 
     def initialize(**args : **T) forall T
       {% for key in T.keys.map(&.id) %}
         {% if ivar = @type.instance_vars.select { |iv| iv.annotation(Column) || iv.annotation(IdColumn) }.reject { |iv| iv.annotation(Deprecated) }.find { |iv| iv.id == key || ((ann = iv.annotation(Column)) && ann[:setter].id == key) } %}
-          {% if !ivar.type.nilable? && T[key].nilable? %}
-            {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
-          {% end %}
-
-          %attr{ivar} = args[{{key.symbolize}}]
-          {% if (ann = ivar.annotation(Column)) && (transform_in = ann[:transform_in]) %}
-            %attr{ivar} = self.class.{{transform_in}}(%attr{ivar})
-          {% end %}
-
-          unless %attr{ivar}.nil?
-            @{{ivar}} = ::Orma::Attribute.new(self.class, {{key.symbolize}}, %attr{ivar})
-          else
-            {% unless ivar.type.nilable? || ivar.has_default_value? %}
-              raise "{{key}} can not be nil"
+          {% ann = ivar.annotation(Column) %}
+          {% if ann && ann[:setter] && ivar.id == key && T.keys.map(&.id).includes?(ann[:setter].id) %}
+            # The public setter value takes precedence over an internal column value.
+          {% else %}
+            {% if !ivar.type.nilable? && T[key].nilable? %}
+              {% @type.raise "Type of `#{key}` argument is nilable, but `@#{ivar}` is not" %}
             {% end %}
-          end
+
+            %attr{ivar} = args[{{key.symbolize}}]
+            {% if ann && ann[:setter].id == key && (transform_in = ann[:transform_in]) %}
+              %attr{ivar} = self.class.{{transform_in}}(%attr{ivar})
+            {% end %}
+
+            unless %attr{ivar}.nil?
+              @{{ivar}} = ::Orma::Attribute.new(self.class, {{ivar.name.symbolize}}, %attr{ivar})
+            else
+              {% unless ivar.type.nilable? || ivar.has_default_value? %}
+                raise "{{key}} can not be nil"
+              {% end %}
+            end
+          {% end %}
         {% else %}
           {% @type.raise "#{key} is not a writable property of #{@type}" %}
         {% end %}
@@ -322,6 +344,9 @@ module Orma
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
                 %value{model_col.id} = db_res.read({{read_type}})
             {% end %}
+            else
+              # ResultSet reads are positional, so unknown columns still need to be consumed to keep following modeled columns aligned.
+              db_res.read
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
@@ -511,6 +536,9 @@ module Orma
                 {% read_type = model_col.type.nilable? ? "#{col_type}?".id : col_type %}
                 %value{model_col.id} = db_res.read({{read_type}})
             {% end %}
+            else
+              # ResultSet reads are positional, so unknown columns still need to be consumed to keep following modeled columns aligned.
+              db_res.read
           end
         end
         {% for model_col in @type.instance_vars.select { |var| var.annotation(Column) || var.annotation(IdColumn) } %}
@@ -579,33 +607,6 @@ module Orma
       end
     end
 
-    private def insert_record
-      {% if @type.instance_vars.any? { |v| v.name == "created_at".id && v.annotation(Column) } %}
-        self.created_at ||= Time.utc
-      {% end %}
-      {% if @type.instance_vars.any? { |v| v.name == "updated_at".id && v.annotation(Column) } %}
-        self.updated_at ||= Time.utc
-      {% end %}
-
-      args = [] of DB::Any
-      query = String.build do |qry|
-        qry << "INSERT INTO "
-        qry << table_name
-        qry << "("
-        column_values.keys.join(qry, ", ")
-        qry << ") VALUES ("
-        column_values.values.join(qry, ", ") do |v, io|
-          db_adapter.add_parameter_placeholder(io, args, v.to_db_param)
-        end
-        qry << ")"
-      end
-      begin
-        db_adapter.insert_and_return_id(query, args, self.class.id_column_name)
-      rescue err
-        raise DBError.new(err, query)
-      end
-    end
-
     # :nodoc:
     private def self.insert_record(**args : **T) forall T
       {% for ivar in @type.instance_vars.select { |iv| iv.annotation(Column) && iv.has_default_value? } %}
@@ -619,54 +620,36 @@ module Orma
         qry << "INSERT INTO "
         qry << table_name
         qry << "("
-        args.keys.join(qry, ", ") do |key, io|
-          io << get_setter(key)
-        end
+        args.keys.join(qry, ", ")
         qry << ") VALUES ("
-        args.to_a.join(qry, ", ") do |(key, value), io|
-          db_adapter.add_parameter_placeholder(io, args_values, transform_in(key, value).to_db_param)
+        args.values.join(qry, ", ") do |value, io|
+          db_adapter.add_parameter_placeholder(io, args_values, value.to_db_param)
         end
         qry << ")"
       end
       begin
         record_id = db_adapter.insert_and_return_id(query, args_values, id_column_name)
-
-        # need to cast `#last_insert_id : Int64` to whatever `id`s type is
-        {% if id_type = @type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first %}
-          {{id_type}}.new(record_id)
-        {% else %}
-          {% raise "No `id` column defined on #{@type}" %}
-        {% end %}
+        {{@type.instance_vars.find { |v| v.annotation(IdColumn) }.type.type_vars.first}}.new(record_id)
       rescue err
         raise DBError.new(err, query)
       end
     end
 
-    # :nodoc:
-    private def self.get_setter(key)
+    # Converts public setter arguments to their stored column names and values before insertion and initialization.
+    private def self.transform_in(**args : **T) forall T
       {% begin %}
-        case key
-        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:setter] != nil } %}
-        when {{ivar.annotation(Column)[:setter].id.symbolize}}
-          {{ivar.name.id.symbolize}}
+        {% transformed_args = [] of ASTNode %}
+        {% for key in T.keys.map(&.id) %}
+          {% ivar = @type.instance_vars.find { |iv| iv.annotation(Column) && (iv.id == key || iv.annotation(Column)[:setter].id == key) } %}
+          {% ann = ivar && ivar.annotation(Column) %}
+          {% if ann && ann[:setter] && ivar.id == key && T.keys.map(&.id).includes?(ann[:setter].id) %}
+          {% elsif ann && ann[:setter].id == key && (transform = ann[:transform_in]) %}
+            {% transformed_args << "#{ivar.name}: #{transform.id}(args[#{key.symbolize}])".id %}
+          {% else %}
+            {% transformed_args << "#{key}: args[#{key.symbolize}]".id %}
+          {% end %}
         {% end %}
-        else
-          key
-        end
-      {% end %}
-    end
-
-    # :nodoc:
-    private def self.transform_in(key, value)
-      {% begin %}
-        case key
-        {% for ivar in @type.instance_vars.select { |iv| (ann = iv.annotation(Column)) && ann[:transform_in] != nil } %}
-        when {{(ivar.annotation(Column)[:setter] || ivar.name).id.symbolize}}
-          {{ivar.annotation(Column)[:transform_in].id}}(value.as({{ivar.type.union_types.find { |t| t != Nil }.type_vars.first}}{{ "?".id if ivar.type.nilable? }}))
-        {% end %}
-        else
-          value
-        end
+        { {{transformed_args.splat}} }
       {% end %}
     end
 
@@ -721,9 +704,29 @@ module Orma
 
       {% for ivar in @type.instance_vars %}
         {% if ivar.annotation(Column) && ivar.annotation(Unique) && !ivar.annotation(Deprecated) %}
-          index_name = "idx_#{table_name}_{{ivar}}"
+          {% scope = ivar.annotation(Unique)[:scope] %}
+          {% unique_columns = [ivar.name.stringify] %}
+          {% if scope %}
+            {% for scoped_column in scope %}
+              {% scoped_column_name = scoped_column.id.stringify %}
+              {% unless @type.instance_vars.any? { |var| (var.annotation(Column) || var.annotation(IdColumn)) && !var.annotation(Deprecated) && var.name.stringify == scoped_column_name } %}
+                {% ivar.raise("unique scope column `#{scoped_column_name}` does not exist on #{@type}") %}
+              {% end %}
+              {% unique_columns << scoped_column_name %}
+            {% end %}
+          {% end %}
+          index_name = "idx_#{table_name}_{{unique_columns.join("_").id}}"
           unless index_names.includes?(index_name)
-            db.exec "CREATE UNIQUE INDEX #{index_name} ON #{table_name} ({{ivar}})"
+            sql = db_adapter.create_unique_index_sql(table_name, index_name, [{{unique_columns.map { |column| column.stringify }.splat}}] of String)
+            begin
+              db.exec sql
+            rescue err
+              if db_adapter.unique_index_data_violation?(err)
+                Orma::Log.warn(exception: err) { "Could not create unique index #{index_name} on #{table_name}; existing duplicate data violates the new constraint. Fix the data manually and rerun continuous migration." }
+              else
+                raise err
+              end
+            end
           end
         {% end %}
       {% end %}

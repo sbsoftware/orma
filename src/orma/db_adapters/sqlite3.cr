@@ -101,6 +101,10 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     raise err
   end
 
+  def unique_index_data_violation?(error : Exception) : Bool
+    error.message.try(&.includes?("UNIQUE constraint failed")) || false
+  end
+
   private def sqlite_column_infos(table_name : String) : Array(ColumnInfo)
     infos = [] of ColumnInfo
     db.query("PRAGMA table_info(#{table_name})") do |res|

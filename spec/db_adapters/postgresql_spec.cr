@@ -21,4 +21,8 @@ describe Orma::DbAdapters::Postgresql do
   it "adds a FOR UPDATE clause for row locks" do
     String.build { |io| adapter.add_lock_clause(io) }.should eq(" FOR UPDATE")
   end
+
+  it "generates unique index SQL for multiple columns" do
+    adapter.create_unique_index_sql("records", "idx_records_slug_account_id", ["slug", "account_id"]).should eq("CREATE UNIQUE INDEX idx_records_slug_account_id ON records (slug, account_id)")
+  end
 end
