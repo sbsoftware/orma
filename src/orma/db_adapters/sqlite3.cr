@@ -33,6 +33,8 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     case klass
     in Int64.class        then "INTEGER"
     in Int32.class        then "INTEGER"
+    in Float64.class      then "REAL"
+    in Float32.class      then "REAL"
     in String.class       then "TEXT"
     in Bool.class         then "INTEGER"
     in Time.class         then "INTEGER"
