@@ -6,6 +6,8 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     case klass
     in Int64.class        then "BIGINT"
     in Int32.class        then "INTEGER"
+    in Float64.class      then "DOUBLE PRECISION"
+    in Float32.class      then "REAL"
     in String.class       then "VARCHAR"
     in Bool.class         then "BOOLEAN"
     in Time.class         then "TIMESTAMP"

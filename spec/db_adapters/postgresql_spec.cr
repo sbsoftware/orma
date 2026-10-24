@@ -9,6 +9,11 @@ describe Orma::DbAdapters::Postgresql do
     adapter.db_type_for(Int32).should eq("INTEGER")
   end
 
+  it "uses floating-point types for float columns" do
+    adapter.db_type_for(Float64).should eq("DOUBLE PRECISION")
+    adapter.db_type_for(Float32).should eq("REAL")
+  end
+
   it "uses serial integer types for primary-key columns" do
     adapter.primary_key_db_type_for(Int64).should eq("BIGSERIAL")
     adapter.primary_key_db_type_for(Int32).should eq("SERIAL")
