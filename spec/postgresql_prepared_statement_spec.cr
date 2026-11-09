@@ -166,6 +166,14 @@ module Orma::PostgresqlPreparedStatementSpec
       end
     end
 
+    describe "via #first?" do
+      it "limits the query to one ordered record" do
+        expect_db_call(FakeDB::Call.new(:query, "SELECT * FROM orma_postgresql_prepared_statement_spec_records WHERE name=$1 ORDER BY age DESC LIMIT $2", db_args("test", 1_i64))) do
+          Record.where(name: "test").order_by_age!(:desc).first?
+        end
+      end
+    end
+
     describe "via #count" do
       it "uses numbered placeholders" do
         expect_db_call(FakeDB::Call.new(:scalar, "SELECT COUNT(*) FROM orma_postgresql_prepared_statement_spec_records WHERE name=$1 AND age=$2", db_args("test", 1))) do
