@@ -69,7 +69,7 @@ abstract class Orma::Query
     end
   end
 
-  delegate :each, :each_with_index, :map, :last, :last?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
+  delegate :size, :each, :each_with_index, :map, :last, :last?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
 
   record Condition(T), name : String, value : T
 
@@ -167,12 +167,6 @@ abstract class Orma::Query
     rescue err
       raise DBError.new(err, statement.sql)
     end
-  end
-
-  def size
-    return collection.size if @limit.try { |limit| limit < 0 }
-
-    @limit.try { |limit| Math.min(count, limit).to_i } || count.to_i
   end
 
   def first
