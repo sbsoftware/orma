@@ -58,6 +58,31 @@ module Orma::IndexableSpec
       MyRecord.all.first?.should eq(MyRecord.find(1))
     end
 
+    it "implements #first" do
+      MyRecord.all.order_by_id!(:desc).first.should eq(MyRecord.find(3))
+    end
+
+    it "preserves empty-query semantics for #first and #first?" do
+      query = MyRecord.where(name: "Missing")
+
+      query.first?.should be_nil
+      expect_raises(Enumerable::EmptyError) { query.first }
+    end
+
+    it "respects an existing zero limit for #first?" do
+      MyRecord.all.limit(0).first?.should be_nil
+    end
+
+    it "checks presence without materializing the full query" do
+      MyRecord.all.any?.should be_true
+      MyRecord.where(name: "Missing").empty?.should be_true
+      MyRecord.all.limit(0).any?.should be_false
+    end
+
+    it "preserves block-based #any?" do
+      MyRecord.all.any? { |record| record.name == "Two" }.should be_true
+    end
+
     it "implements #last?" do
       MyRecord.all.last?.should eq(MyRecord.find(3))
     end
