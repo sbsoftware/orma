@@ -69,7 +69,7 @@ abstract class Orma::Query
     end
   end
 
-  delegate :size, :each, :each_with_index, :map, :first, :first?, :last, :last?, :any?, :empty?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
+  delegate :size, :each, :each_with_index, :map, :last, :last?, :all?, :none?, :select, :max_by, :min_by, :find, :find!, to: collection
 
   record Condition(T), name : String, value : T
 
@@ -169,6 +169,26 @@ abstract class Orma::Query
     end
   end
 
+  def first
+    first_collection.first
+  end
+
+  def first?
+    first_collection.first?
+  end
+
+  def any?
+    !first_collection.empty?
+  end
+
+  def any?(&)
+    collection.any? { |item| yield item }
+  end
+
+  def empty?
+    first_collection.empty?
+  end
+
   def to_a
     collection.dup.to_a
   end
@@ -187,6 +207,12 @@ abstract class Orma::Query
 
   private def find_all_query : Statement
     build_query("*")
+  end
+
+  private def first_query : Statement
+    statement = build_query("*", include_limit: false)
+    statement.add_limit(@limit == 0 ? 0_i64 : 1_i64)
+    statement
   end
 
   private def build_query(select_clause, *, include_limit = true) : Statement
@@ -222,5 +248,16 @@ abstract class Orma::Query
           raise DBError.new(err, statement.sql)
         end
       end
+  end
+
+  private def first_collection
+    statement = first_query
+    begin
+      db.query(statement.sql, args: statement.args) do |res|
+        load_many_from_result(res)
+      end
+    rescue err
+      raise DBError.new(err, statement.sql)
+    end
   end
 end
