@@ -58,9 +58,9 @@ abstract class Orma::Query
 
     private def add_where_condition_values(predicate)
       @sql << "(" if predicate.wrap_values
-      predicate.values.join(@sql, predicate.value_separator) do |value, io|
+      predicate.values.each_with_index.join(@sql, predicate.value_separator) do |(value, index), io|
         if value.parameterized?
-          add_parameter(value.parameter.not_nil!)
+          add_parameter(@db_adapter.query_parameter(predicate.operator, value.parameter.not_nil!, index))
         else
           io << value.sql.not_nil!
         end

@@ -20,6 +20,10 @@ abstract class Orma::DbAdapters::Base
     "?"
   end
 
+  def query_parameter(operator : String, value : DB::Any, value_index : Int32) : DB::Any
+    value
+  end
+
   def add_parameter_placeholder(io : IO, args : Array(DB::Any), value : DB::Any)
     io << parameter_placeholder(args)
     args << value

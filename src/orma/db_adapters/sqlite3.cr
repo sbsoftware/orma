@@ -50,6 +50,28 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     db_type_for(klass)
   end
 
+  def query_parameter(operator : String, value : DB::Any, value_index : Int32) : DB::Any
+    return value unless value.is_a?(Time)
+
+    remainder = value.nanosecond % 1_000_000
+    return value if remainder == 0
+
+    # SQLite persists Time values on a millisecond grid. Move inequality boundaries
+    # to the equivalent grid edge before the driver truncates bound parameters.
+    case operator
+    when "<", ">="
+      value + (1_000_000 - remainder).nanoseconds
+    when "<=", ">"
+      value - remainder.nanoseconds
+    when " BETWEEN "
+      value_index == 0 ? value + (1_000_000 - remainder).nanoseconds : value - remainder.nanoseconds
+    when "=", " IN "
+      nil
+    else
+      value
+    end
+  end
+
   def query_column_names(table_name : String) : Array(String)
     sqlite_column_infos(table_name).map(&.name)
   end
