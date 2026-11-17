@@ -32,6 +32,24 @@ module Orma::UniqueSpec
     column slug : String, unique: {scope: [account_id]}
   end
 
+  class ChangedIndexRecord < TestRecord
+    id_column id : Int64
+    column account_id : Int64
+    column locale : String
+    column slug : String, unique: {scope: [:account_id]}
+  end
+
+  class RemovedIndexRecord < TestRecord
+    id_column id : Int64
+    column name : String
+  end
+
+  class FailedReplacementRecord < TestRecord
+    id_column id : Int64
+    column account_id : Int64
+    column slug : String, unique: true
+  end
+
   describe "MyRecord#save" do
     before_all do
       MyRecord.continuous_migration!
@@ -81,6 +99,43 @@ module Orma::UniqueSpec
       DuplicateBackfillRecord.db.exec "INSERT INTO #{DuplicateBackfillRecord.table_name}(id, tenant_id, slug) VALUES (2, 1, 'duplicate')"
 
       DuplicateBackfillRecord.continuous_migration!
+    end
+  end
+
+  describe "continuous migration index pruning" do
+    it "creates changed declarations before pruning obsolete managed indexes" do
+      ChangedIndexRecord.ensure_table_exists!
+      old_index = "idx_#{ChangedIndexRecord.table_name}_slug_account_id_locale"
+      ChangedIndexRecord.db.exec "CREATE UNIQUE INDEX #{old_index} ON #{ChangedIndexRecord.table_name} (slug, account_id, locale)"
+
+      ChangedIndexRecord.continuous_migration!
+
+      ChangedIndexRecord.db_adapter.query_index_names(ChangedIndexRecord.table_name).sort.should eq(["idx_#{ChangedIndexRecord.table_name}_slug_account_id"])
+      ChangedIndexRecord.continuous_migration!
+      ChangedIndexRecord.db_adapter.query_index_names(ChangedIndexRecord.table_name).sort.should eq(["idx_#{ChangedIndexRecord.table_name}_slug_account_id"])
+    end
+
+    it "prunes removed declarations while preserving unmanaged indexes" do
+      RemovedIndexRecord.ensure_table_exists!
+      managed_index = "idx_#{RemovedIndexRecord.table_name}_name"
+      RemovedIndexRecord.db.exec "CREATE UNIQUE INDEX #{managed_index} ON #{RemovedIndexRecord.table_name} (name)"
+      RemovedIndexRecord.db.exec "CREATE INDEX manually_created_name_index ON #{RemovedIndexRecord.table_name} (name)"
+
+      RemovedIndexRecord.continuous_migration!
+
+      RemovedIndexRecord.db_adapter.query_index_names(RemovedIndexRecord.table_name).sort.should eq(["manually_created_name_index"])
+    end
+
+    it "retains obsolete indexes when replacement creation fails" do
+      FailedReplacementRecord.ensure_table_exists!
+      old_index = "idx_#{FailedReplacementRecord.table_name}_account_id"
+      FailedReplacementRecord.db.exec "CREATE UNIQUE INDEX #{old_index} ON #{FailedReplacementRecord.table_name} (account_id)"
+      FailedReplacementRecord.db.exec "INSERT INTO #{FailedReplacementRecord.table_name}(account_id, slug) VALUES (1, 'duplicate'), (2, 'duplicate')"
+
+      FailedReplacementRecord.continuous_migration!
+
+      FailedReplacementRecord.db_adapter.query_index_names(FailedReplacementRecord.table_name).should contain(old_index)
+      FailedReplacementRecord.db_adapter.query_index_names(FailedReplacementRecord.table_name).should_not contain("idx_#{FailedReplacementRecord.table_name}_slug")
     end
   end
 
