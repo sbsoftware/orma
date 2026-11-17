@@ -42,10 +42,10 @@ class Orma::DbAdapters::Postgresql < Orma::DbAdapters::Base
     end
   end
 
-  def query_index_names
+  def query_index_names(table_name : String)
     names = [] of String
 
-    db.query("SELECT indexname FROM pg_indexes") do |res|
+    db.query("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = $1", table_name) do |res|
       res.each do
         res.each_column do |column|
           if column == "indexname"

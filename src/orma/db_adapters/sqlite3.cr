@@ -54,10 +54,10 @@ class Orma::DbAdapters::Sqlite3 < Orma::DbAdapters::Base
     sqlite_column_infos(table_name).map(&.name)
   end
 
-  def query_index_names
+  def query_index_names(table_name : String)
     names = [] of String
 
-    db.query("SELECT name FROM sqlite_schema WHERE type='index'") do |res|
+    db.query("SELECT name FROM sqlite_schema WHERE type='index' AND tbl_name=?", table_name) do |res|
       res.each do
         res.each_column do |column|
           if column == "name"

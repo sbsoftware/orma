@@ -700,7 +700,9 @@ module Orma
     end
 
     def self.ensure_unique_indexes_exist!
-      index_names = db_adapter.query_index_names
+      index_names = db_adapter.query_index_names(table_name)
+      declared_index_names = [] of String
+      replacement_failed = false
 
       {% for ivar in @type.instance_vars %}
         {% if ivar.annotation(Column) && ivar.annotation(Unique) && !ivar.annotation(Deprecated) %}
@@ -716,6 +718,7 @@ module Orma
             {% end %}
           {% end %}
           index_name = "idx_#{table_name}_{{unique_columns.join("_").id}}"
+          declared_index_names << index_name
           unless index_names.includes?(index_name)
             sql = db_adapter.create_unique_index_sql(table_name, index_name, [{{unique_columns.map { |column| column.stringify }.splat}}] of String)
             begin
@@ -723,6 +726,7 @@ module Orma
             rescue err
               if db_adapter.unique_index_data_violation?(err)
                 Orma::Log.warn(exception: err) { "Could not create unique index #{index_name} on #{table_name}; existing duplicate data violates the new constraint. Fix the data manually and rerun continuous migration." }
+                replacement_failed = true
               else
                 raise err
               end
@@ -730,6 +734,18 @@ module Orma
           end
         {% end %}
       {% end %}
+
+      # Keep old constraints in place if any replacement could not be created.
+      return if replacement_failed
+
+      # The generated table-specific prefix is Orma's index ownership namespace.
+      managed_prefix = "idx_#{table_name}_"
+      index_names.each do |index_name|
+        next unless index_name.starts_with?(managed_prefix) && !declared_index_names.includes?(index_name)
+
+        db.exec db_adapter.drop_index_sql(index_name)
+        Orma::Log.info { "Removed obsolete unique index #{index_name} from #{table_name}." }
+      end
     end
 
     def self.deprecate_columns!
