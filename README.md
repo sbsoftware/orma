@@ -85,6 +85,9 @@ Orma currently supports:
 - SQLite3
 - PostgreSQL
 
+SQLite stores `Time` columns as integer milliseconds. Query predicates automatically normalize submillisecond boundaries to preserve their comparison semantics without applying functions to indexed columns.
+This assumes existing SQLite timestamp values were written through the driver at millisecond precision; values inserted outside that representation are not normalized.
+
 ## Development
 
 Run the test suite:

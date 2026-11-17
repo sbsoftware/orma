@@ -12,6 +12,22 @@ describe Orma::DbAdapters::Sqlite3 do
     adapter.create_unique_index_sql("records", "idx_records_slug_account_id", ["slug", "account_id"]).should eq("CREATE UNIQUE INDEX idx_records_slug_account_id ON records (slug, account_id)")
   end
 
+  it "normalizes every Time comparison operator to millisecond precision" do
+    boundary = Time.utc(2025, 1, 1, 12, 0, 0, nanosecond: 123_456_000)
+    lower = Time.utc(2025, 1, 1, 12, 0, 0, nanosecond: 123_000_000)
+    upper = Time.utc(2025, 1, 1, 12, 0, 0, nanosecond: 124_000_000)
+
+    adapter.query_parameter("<", boundary, 0).should eq(upper)
+    adapter.query_parameter(">=", boundary, 0).should eq(upper)
+    adapter.query_parameter("<=", boundary, 0).should eq(lower)
+    adapter.query_parameter(">", boundary, 0).should eq(lower)
+    adapter.query_parameter(" BETWEEN ", boundary, 0).should eq(upper)
+    adapter.query_parameter(" BETWEEN ", boundary, 1).should eq(lower)
+    adapter.query_parameter("=", boundary, 0).should be_nil
+    adapter.query_parameter(" IN ", boundary, 0).should be_nil
+    adapter.query_parameter("=", lower, 0).should eq(lower)
+  end
+
   describe ".add_default_connection_string_options" do
     it "adds default options missing from the connection string" do
       connection_string = Orma::DbAdapters::Sqlite3.add_default_connection_string_options("sqlite3:%3Amemory%3A?max_pool_size=1")
